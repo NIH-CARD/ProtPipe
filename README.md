@@ -23,7 +23,7 @@ Rscript cluster.R
 ``` 
 
 ## Differential expression analysis(DESeq2)
-DE analysis is done using the DESeq2 Bioconductor package. It takes the merged raw read counts (from HTseq-count) as an input:
+DE analysis is done using the DESeq2 Bioconductor package. It takes the merged raw read counts (from Spectronaut) as an input:
 ```
 Rscript ~rcode/deseq2.R
 ```
