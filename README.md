@@ -2,7 +2,7 @@
 ## Proteomics data anylysis 
 
 This workflow performs the following tasks:
-- Spectronaut for Protein Analysis and Quantification
+- [Spectronaut](https://biognosys.com/resources/spectronaut-the-deepest-proteome-coverage-available/) or [DIA-NN](https://github.com/vdemichev/DiaNN) for Protein Analysis and Quantification
 - Data process and Cluster
 - Differential expression analysis(DESeq2)
 - Downstream functional enrichment analysis
