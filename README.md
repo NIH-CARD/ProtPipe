@@ -9,6 +9,7 @@ This workflow performs the following tasks:
 
 ## System requirements
 - Windows for Spectronaut
+- Linux for DIA-NN
 - R 
 
 
