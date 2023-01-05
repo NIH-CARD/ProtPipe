@@ -8,6 +8,7 @@ This workflow performs the following tasks:
 - Data Cluster
 - Differential expression analysis and visualization
 - Downstream functional enrichment analysis
+- Run all steps from start to finish
 
 ## System requirements
 - Windows for Spectronaut
@@ -28,30 +29,29 @@ diann --f ../20210208_KLOF_DIA_FAIMS_35V_d0_1.mzML   --lib  --threads 24 --verbo
 ``` 
 
 ## Quality control and data filltering
-We used the R to process the MS data, visualize the samples quality and fillter some sample with poor quality. 
+We used the R to process the MS data, visualize the samples quality and fillter some sample with poor quality. This step will provide the figures including the total number of identified and quantified protein groups, the distribution of protein intensity, and correlation among protein abundance of the biological replicates.
+
+Runing the code:
 ``` bash
-Rscript data.R
-Rscript cluster.R
+Rscript QC.R --pro_input $pro_input --pep_input $pep_input -p $project_name -o $outdir
+``` 
+
+## Data Cluster
+The data cluster include HC-cluster, PCA, and UMAP.
+
+``` bash
+Rscript cluster_plot.R -i $pro_input -p $project_name -o $outdir
 ``` 
 
 
-## Data Cluster
-
-(including HC-cluster, PCA, UMAP,Correlation)
-## Differential expression analysis(DESeq2)
-DE analysis is done using the DESeq2 Bioconductor package. It takes the merged raw read counts (from Spectronaut) as an input:
+## Differential expression analysis(T-test) and downstream functional enrichment analysis
+DE analysis is done using the t-test. Downstream functional enrichment analysis for Differential expression gene. It takes the MS quatification from Spectronaut as an input:
 ```
-Rscript ~rcode/deseq2.R
-```
-
-## Downstream functional enrichment analysis
-Downstream functional enrichment analysis for Differential expression gene.
-```
-Rscript ~rcode/GO_enrichment.R
+Rscript DE_enrichment.R -i $pro_input -c $control -o $outdir 
 ```
 
 ## Bash comand line
-Downstream functional enrichment analysis for Differential expression gene.
+
 ```
 bash pro.bash
 ```
