@@ -53,6 +53,6 @@ Rscript DE_enrichment.R -i $pro_input -c $control -o $outdir
 ## Bash comand line
 
 ```
-bash pro.bash
+bash spe_pro.bash
 ```
 
