@@ -27,6 +27,25 @@ builder, i.e.:
 singularity build --remote src/${img}.sif src/${img}.singularity
 ```
 
+# DIA-NN singularity image
+
+```bash
+md5_desired='35644c1d7217f0c65727b8fb9c8bfaae'
+
+singularity pull \
+    --arch amd64 \
+    --name src/diann-1.8.1.sif \
+    library://wellerca/diann/1.8.1:0.9
+
+md5_actual=$(md5sum src/diann-1.8.1.sif | awk '{print $1}')
+
+if [ ! "${md5_actual}" == "${md5_desired}" ]; then
+    echo  'sif md5 does not match'
+else
+    echo 'sif md5 verified'
+fi
+```
+
 ## Running the processing R script
 After ensuring the singularity image is available, [`run.sh`](src/run.sh) defines input/output
 parameters and executes [`processing.R`](src/processing.R) within the container, generating
