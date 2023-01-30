@@ -29,6 +29,8 @@ singularity build --remote src/${img}.sif src/${img}.singularity
 
 # DIA-NN singularity image
 
+The image was built from the recipe file [`diann-1.8.1.def`](src/diann-1.8.1.def) using the sylabs
+remote builder (via web interface).
 ```bash
 md5_desired='35644c1d7217f0c65727b8fb9c8bfaae'
 
@@ -45,6 +47,8 @@ else
     echo 'sif md5 verified'
 fi
 ```
+Note: The container must be called using the `--cleanenv` option, otherwise the container may fail 
+due to collision between system and container libraries.
 
 ## Running the processing R script
 After ensuring the singularity image is available, [`run.sh`](src/run.sh) defines input/output
