@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #SBATCH -N 1
 #SBATCH --tasks-per-node 20
-#SBATCH --mem 50G
-#SBATCH --time 0-2:00:00
-#SBATCH --partition quick
+#SBATCH --mem 80G
+#SBATCH --time 0-4:00:00
+#SBATCH --partition norm
 
 trap '[[ $? -eq 1 ]] && echo Halting execution due to errors' EXIT
 

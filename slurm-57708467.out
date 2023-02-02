@@ -1,0 +1,46 @@
+INFO: --out not specified, output will be saved to current working directory
+INFO: arguments passed validation
+INFO: singularity command found
+Spec Input:	./example/raw_MS_mzML/HREC_ETIS_1.mzML
+FASTA Input:	./example/uniprot-proteome_Human_UP000005640_20191105.fasta
+Output to:	/home/wellerca/ProtPipe/
+Singularity:	./src/diann-1.8.1.sif
+[-] Unloading singularity  3.10.5  on cn0415 
+[+] Loading singularity  3.10.5  on cn0415 
+DIA-NN 1.8.1 (Data-Independent Acquisition by Neural Networks)
+Compiled on Apr 15 2022 08:45:18
+Current date and time: Thu Feb  2 11:47:50 2023
+Logical CPU cores: 32
+Thread number set to 24
+Output will be filtered at 0.01 FDR
+Precursor/protein x samples expression level matrices will be saved along with the main report
+A spectral library will be generated
+Deep learning will be used to generate a new in silico spectral library from peptides provided
+Library-free search enabled
+Min fragment m/z set to 200
+Max fragment m/z set to 2000
+N-terminal methionine excision enabled
+In silico digest will involve cuts at K*,R*
+Maximum number of missed cleavages set to 2
+Min peptide length set to 7
+Max peptide length set to 52
+Min precursor m/z set to 300
+Max precursor m/z set to 1800
+Min precursor charge set to 1
+Max precursor charge set to 4
+Cysteine carbamidomethylation enabled as a fixed modification
+Maximum number of variable modifications set to 5
+Modification UniMod:35 with mass delta 15.9949 at M will be considered as variable
+Modification UniMod:1 with mass delta 42.0106 at *n will be considered as variable
+A spectral library will be created from the DIA runs and used to reanalyse them; .quant files will only be saved to disk during the first step
+Highly heuristic protein grouping will be used, to reduce the number of protein groups obtained; this mode is recommended for benchmarking protein ID numbers; use with caution for anything else
+When generating a spectral library, in silico predicted spectra will be retained if deemed more reliable than experimental ones
+Fixed-width center of each elution peak will be used for quantification
+Interference removal from fragment elution curves disabled
+DIA-NN will optimise the mass accuracy automatically using the first run in the experiment. This is useful primarily for quick initial analyses, when it is not yet known which mass accuracy setting works best for a particular acquisition scheme.
+Exclusion of fragments shared between heavy and light peptides from quantification is not supported in FASTA digest mode - disabled; to enable, generate an in silico predicted spectral library and analyse with this library
+The following variable modifications will be scored: UniMod:1 
+WARNING: MBR turned off, two or more raw files are required
+
+1 files will be processed
+[0:00] Loading FASTA ./example/uniprot-proteome_Human_UP000005640_20191105.fasta
