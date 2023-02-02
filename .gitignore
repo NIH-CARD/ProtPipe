@@ -3,3 +3,4 @@
 *.pdf
 *.mzML
 *.mzML.quant
+slurm*.out
