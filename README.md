@@ -34,6 +34,7 @@ remote builder (via web interface).
 ```bash
 md5_desired='35644c1d7217f0c65727b8fb9c8bfaae'
 
+module load singularity
 singularity pull \
     --arch amd64 \
     --name src/diann-1.8.1.sif \
@@ -49,6 +50,14 @@ fi
 ```
 Note: The container must be called using the `--cleanenv` option, otherwise the container may fail 
 due to collision between system and container libraries.
+
+Testing a run that's submitted to biowulf with the [`run-diann.sh`](src/run-diann.sh) wrapper:
+
+```bash
+sbatch src/run-diann.sh \
+    --mzml ./example/raw_MS_mzML/HREC_ETIS_1.mzML \
+    --fasta ./example/uniprot-proteome_Human_UP000005640_20191105.fasta
+```
 
 ## Running the processing R script
 After ensuring the singularity image is available, [`run.sh`](src/run.sh) defines input/output
@@ -75,6 +84,7 @@ singularity run -H $PWD:/home src/${img}.sif \
     -o ${outdir} \
     --design_matrix ${design_matrix}
 ```
+
 
 
 
@@ -177,3 +187,36 @@ Rscript DE_enrichment.R -i $pro_input -c $control -o $outdir
 bash spe_pro.bash
 ```
 
+
+## Tiny example
+
+### Generating tiny example files
+Wanting to subset down to 5% of FASTA file and 1% of mzML file. Subsetting the fasta is easy.
+`wc -l example/uniprot-proteome_Human_UP000005640_20191105.fasta` yields 539137 lines. First 4999
+lines evenly splits between entries, and is ~1% of the file.
+
+```bash
+head -n 4999 example/uniprot-proteome_Human_UP000005640_20191105.fasta > tiny/tiny.fasta
+```
+
+Splitting the mzML file is more difficult due to XML formatting. One of the files 
+`example/uniprot-proteome_Human_UP000005640_20191105.fasta` contains 78301 `<pectrum index>` fields.
+We can subset by excluding the lines for 99% of the indices. If we only want ~700 of the indices,
+we exclude indices 701-78301. Each field ends with a `</spectrum>` tag.
+
+Based on pattern finding and line numbers, we want lines 1-(line BEFORE index 701, i.e. `<`) and from
+(line CONTAINING `</spectrumList>`, i.e. `>=`) through EOF.
+
+```bash
+lower=$(grep -n '<spectrum index="701"' example/raw_MS_mzML/HREC_IRIS_1.mzML | cut -d ':' -f 1)
+upper=$(grep -n '</spectrumList>' example/raw_MS_mzML/HREC_IRIS_1.mzML | cut -d ':' -f 1)
+awk -v lower=${lower} \
+    -v upper=${upper} \
+    'NR < lower || NR >= upper' example/raw_MS_mzML/HREC_IRIS_1.mzML \
+    > tiny/tiny.mxML
+```
+
+### Test run with container
+```bash
+src/tiny-diann-test.sh tiny/tiny.mxML tiny/tiny.fasta 
+```
