@@ -11,7 +11,7 @@ SRC_DIR='./src'
 SINGULARITY_IMAGE="${SRC_DIR}/diann-1.8.1.sif"
 
 ARGS="$@"
-
+THREADS='20'
 # Argument parsing
 usage_error () { echo >&2 "$(basename $0):  $1"; exit 2; }
 assert_argument () { test "$1" != "$EOL" || usage_error "$2 requires an argument"; }
@@ -98,6 +98,12 @@ else
     echo "INFO: arguments passed validation"
 fi
 
+## Only one mass spec is allowed at this point; concatenation of vars is identical to
+## Selecting the one provided by user
+MASS_SPEC_INPUT="${MZML}${DIA}${RAW}"
+
+
+# Simulated power analysis of pseudoreplication?
 
 # Check for singularity
 if ! command -v singularity &> /dev/null; then
@@ -119,19 +125,20 @@ else
     echo 'INFO: singularity command found'
 fi
 
-
-MASS_SPEC_INPUT="${MZML}${DIA}${RAW}"
+echo -e '\n###########\nPARAMETERS:\n###########\n'
 echo -e "Spec Input:\t${MASS_SPEC_INPUT}"
 echo -e "FASTA Input:\t${FASTA_INPUT}"
 echo -e "Output to:\t${OUTPUT_DIR}/"
 echo -e "Singularity:\t${SINGULARITY_IMAGE}"
+echo -e '\n\n\n'
 
 
+echo -e '\n###############\nSTARTING DIA-NN\n###############\n'
 singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     diann \
     --f ${MASS_SPEC_INPUT}   \
     --lib  \
-    --threads 24 \
+    --threads ${THREADS} \
     --verbose 1 \
     --out ${OUTPUT_DIR}/report.tsv \
     --qvalue 0.01 \
@@ -161,4 +168,9 @@ singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     --relaxed-prot-inf \
     --smart-profiling \
     --peak-center \
-    --no-ifs-removal 
+    --no-ifs-removal
+
+
+exit 0
+
+
