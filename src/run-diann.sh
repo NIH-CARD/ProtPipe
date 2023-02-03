@@ -233,6 +233,7 @@ if [ "${DEBUG}" == 'TRUE' ]; then
     exit 0
 fi
 
+# Print clobber warning before proceeding
 if [ "${CLOBBER}" == 'TRUE' ]; then
     echo -e 'INFO: ignoring and re-generating pre-existing files due to --clobber flag\n'
 fi
@@ -242,32 +243,11 @@ module load singularity
 # build in silico lib
 build_in_silico_lib() {
 echo -e 'INFO: starting generation of in silico spectral library\n'
+echo -e "calling command:\n singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} diann --fasta ${FASTA_INPUT} ${DIANN_ARGS}"
 singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     diann \
     --fasta ${FASTA_INPUT} \
-    --fasta-search \
-    --out ${OUTPUT_DIR}/report.tsv \
-    --predictor \
-    --min-fr-mz 200 \
-    --max-fr-mz 2000 \
-    ${DIANN_MET_EXCISION} \
-    --cut K*,R* \
-    --missed-cleavages 2 \
-    --min-pep-len 7 \
-    --max-pep-len 52 \
-    --min-pr-mz 300 \
-    --max-pr-mz 1800 \
-    --min-pr-charge 1 \
-    --max-pr-charge 4 \
-    --unimod4 \
-    --var-mods 5 \
-    ${DIANN_VAR_MODS[@]/#/--var_mod } \
-    --monitor-mod UniMod:1 \
-    ${DIANN_REANALYSE} \
-    ${DIANN_RELAXED_PROT_INF} \
-    ${DIANN_SMART_PROFILING} \
-    ${DIANN_PEAK_CENTER} \
-
+    ${DIANN_ARGS}
 }
 
 analyze_spec_sample() {
