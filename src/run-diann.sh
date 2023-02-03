@@ -174,7 +174,37 @@ else
     echo 'INFO: singularity command found'
 fi
 
-## If any of the above checks failed
+# Check singularity version
+if ! singularity --version | grep -q "version 3."; then
+    echo "WARNING: Singularity is not version 3. This may result in unexpected behavior."
+fi
+
+# Check singularity image
+md5_desired='35644c1d7217f0c65727b8fb9c8bfaae'
+
+
+
+if [ ! -f "${SINGULARITY_IMAGE}" ]; then
+    singularity pull \
+        --arch amd64 \
+        --name ${SINGULARITY_IMAGE} \
+        library://wellerca/diann/1.8.1:0.9
+fi
+
+if [ ! -f "${SINGULARITY_IMAGE}" ]; then
+    echo -e "ERROR: ${SINGULARITY_IMAGE} does not exist. This should not happen unless the pull command failed"
+    exit 1
+fi
+
+md5_actual=$(md5sum ${SINGULARITY_IMAGE} | awk '{print $1}')
+
+if [ ! "${md5_actual}" == "${md5_desired}" ]; then
+    echo -e "ERROR: singularity image ${SINGULARITY_MAGE} is be incomplete or corrupt. Try removing it and trying again."
+    exit 1
+fi
+
+
+
 if [ "${BADARGS}" == 'TRUE' ]; then
     echo -e '\nCheck arguments and try again.\n'
     helpmsg
