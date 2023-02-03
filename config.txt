@@ -93,32 +93,3 @@ case "${DIANN_USE_QUANT}" in
     true)  DIANN_USE_QUANT='--use-quant' ;;
     *)     unset DIANN_USE_QUANT ;;
 esac
-
-echo 
-
-DIANN_ARGS="\
-${DIANN_THREADS/#/--threads } \
-${DIANN_QVALUE/#/--qvalue } \
-${DIANN_MIN_FR_MZ/#/--min-fr-mz } \
-${DIANN_MAX_FR_MZ/#/--max-fr-mz } \
-${DIANN_LIB/#/--lib } \
-${DIANN_CUT/#/--cut } \
-${DIANN_MISSED_CLEAVAGES/#/--missed-cleavages } \
-${DIANN_MIN_PEP_LEN/#/--min-pep-len } \
-${DIANN_MAX_PEP_LEN/#/--max-pep-len } \
-${DIANN_MIN_PR_MZ/#/--min-pr-mz } \
-${DIANN_MAX_PR_MZ/#/--max-pr-mz } \
-${DIANN_MIN_PR_CHARGE/#/--min-pr-charge } \
-${DIANN_MAX_PR_CHARGE/#/--max-pr-charge } \
-${DIANN_VAR_MODS/#/--var-mods } \
-${DIANN_MONITOR_MOD/#/--monitor-mod } \
-${DIANN_VAR_MOD_LIST[@]/#/--var_mod } \
-${DIANN_REANALYSE} \
-${DIANN_RELAXED_PROT_INF} \
-${DIANN_SMART_PROFILING} \
-${DIANN_PEAK_CENTER} \
-${DIANN_NO_IFS_REMOVAL} \
-${DIANN_MET_EXCISION} \
-${DIANN_USE_QUANT} \
-"
-
