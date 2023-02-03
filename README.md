@@ -6,9 +6,25 @@ Executing [`run.sh`](src/run.sh) runs the pipeline outlind below. Briefly, it
 2. Defines input/output parameters
 3. Executes the processing script [`processing.R`](src/processing.R) within a singularity container
 
-# In greater detail
+# Notes
+Expect ~2 hours of runtime per sample with 20 cores
+
+The output files of interest are
+| Filename                  | Description |
+| --------                  | ----------- |
+| `<specfile>.quant`        | ?? |
+| `report-lib.tsv`          | ?? |
+| `report-lib.tsv.speclib`  | ?? |
+| `report.pr_matrix.tsv`    | precursor ion quantities |
+| `report.pg_matrix.tsv`    | protein group quantities |
+| `report.gg_matrix.tsv`    | gene group quantities |
+| `report.stats.tsv`        | gene group quantities |
+| `report.tsv.tsv`          |  precursor ions identified, quantities, quality metrics and annotations |
 
 
+
+
+# In Greater Detail
 Testing a run that's submitted to biowulf with the [`run-diann.sh`](src/run-diann.sh) wrapper:
 
 ## Running example data
