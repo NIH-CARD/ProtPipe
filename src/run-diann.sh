@@ -162,12 +162,13 @@ if ! command -v singularity &> /dev/null; then
         echo "WARNING: module command not found. Did you mean to run this on an HPC?"
         BADARGS='TRUE'
     else
-        if $(module avail singularity 2>&1 >/dev/null | grep -q 'No module'); then
+        if $(module avail singularity/3 2>&1 >/dev/null | grep -q 'No module'); then
             echo 'WARNING: module singularity not found'
             echo 'ERROR: singularity cannot be found. Recheck installation?'
             BADARGS='TRUE'
         else
             echo 'INFO: module singularity found'
+            module load singularity/3
         fi
     fi
 else
