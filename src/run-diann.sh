@@ -4,7 +4,7 @@
 #SBATCH --mem 80G
 #SBATCH --time 0-4:00:00
 #SBATCH --partition norm
-
+set -e
 trap '[[ $? -eq 1 ]] && echo Halting execution due to errors' EXIT
 
 SRC_DIR='./src'
