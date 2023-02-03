@@ -1,0 +1,124 @@
+DIANN_LIB=(
+    'report-lib.predicted.speclib'
+)
+
+DIANN_THREADS='20'
+DIANN_QVALUE='0.01'
+DIANN_MIN_FR_MZ='200'
+DIANN_MAX_FR_MZ='2000'
+DIANN_CUT='K*,R*'
+DIANN_MISSED_CLEAVAGES='2'
+DIANN_MIN_PEP_LEN='7'
+DIANN_MAX_PEP_LEN='52'
+DIANN_MIN_PR_MZ='300'
+DIANN_MAX_PR_MZ='1800'
+DIANN_MIN_PR_CHARGE='1'
+DIANN_MAX_PR_CHARGE='4'
+DIANN_VAR_MODS='5'
+DIANN_VAR_MOD_LIST=(
+    'UniMod:35,15.994915,M'
+    'UniMod:1,42.010565,*n'
+)
+DIANN_MONITOR_MOD='UniMod:1'
+
+## BOOLEAN OPTIONS set to anything other than 'TRUE' will be excluded
+## (deleting the 
+DIANN_REANALYSE='TRUE'
+DIANN_RELAXED_PROT_INF='TRUE'
+DIANN_SMART_PROFILING='TRUE'
+DIANN_PEAK_CENTER='TRUE'
+DIANN_NO_IFS_REMOVAL='TRUE'
+DIANN_MET_EXCISION='TRUE'
+DIANN_FASTA_SEARCH='TRUE'
+DIANN_USE_QUANT='TRUE'
+
+
+
+
+
+
+## Ternary operations for boolean arguments
+case "${DIANN_REANALYSE}" in
+    TRUE)  DIANN_REANALYSE='--reanalyse' ;;
+    True)  DIANN_REANALYSE='--reanalyse' ;;
+    true)  DIANN_REANALYSE='--reanalyse' ;;
+    *)     unset DIANN_REANALYSE ;;
+esac
+
+case "${DIANN_RELAXED_PROT_INF}" in
+    TRUE)  DIANN_RELAXED_PROT_INF='--relaxed-prot-inf' ;;
+    True)  DIANN_RELAXED_PROT_INF='--relaxed-prot-inf' ;;
+    true)  DIANN_RELAXED_PROT_INF='--relaxed-prot-inf' ;;
+    *)     unset DIANN_RELAXED_PROT_INF ;;
+esac
+
+case "${DIANN_SMART_PROFILING}" in
+    TRUE)  DIANN_SMART_PROFILING='--smart-profiling' ;;
+    True)  DIANN_SMART_PROFILING='--smart-profiling' ;;
+    true)  DIANN_SMART_PROFILING='--smart-profiling' ;;
+    *)     unset DIANN_SMART_PROFILING ;;
+esac
+
+case "${DIANN_PEAK_CENTER}" in
+    TRUE)  DIANN_PEAK_CENTER='--peak-center' ;;
+    True)  DIANN_PEAK_CENTER='--peak-center' ;;
+    true)  DIANN_PEAK_CENTER='--peak-center' ;;
+    *)     unset DIANN_PEAK_CENTER ;;
+esac
+
+case "${DIANN_NO_IFS_REMOVAL}" in
+    TRUE)  DIANN_NO_IFS_REMOVAL='--no-ifs-removal' ;;
+    True)  DIANN_NO_IFS_REMOVAL='--no-ifs-removal' ;;
+    true)  DIANN_NO_IFS_REMOVAL='--no-ifs-removal' ;;
+    *)     unset DIANN_NO_IFS_REMOVAL ;;
+esac
+
+case "${DIANN_MET_EXCISION}" in
+    TRUE)  DIANN_MET_EXCISION='--met-excision' ;;
+    True)  DIANN_MET_EXCISION='--met-excision' ;;
+    true)  DIANN_MET_EXCISION='--met-excision' ;;
+    *)     unset DIANN_MET_EXCISION ;;
+esac
+
+case "${DIANN_FASTA_SEARCH}" in
+    TRUE)  DIANN_FASTA_SEARCH='--fasta-search' ;;
+    True)  DIANN_FASTA_SEARCH='--fasta-search' ;;
+    true)  DIANN_FASTA_SEARCH='--fasta-search' ;;
+    *)     unset DIANN_FASTA_SEARCH ;;
+esac
+
+case "${DIANN_USE_QUANT}" in
+    TRUE)  DIANN_USE_QUANT='--use-quant' ;;
+    True)  DIANN_USE_QUANT='--use-quant' ;;
+    true)  DIANN_USE_QUANT='--use-quant' ;;
+    *)     unset DIANN_USE_QUANT ;;
+esac
+
+echo 
+
+DIANN_ARGS="\
+${DIANN_THREADS/#/--threads } \
+${DIANN_QVALUE/#/--qvalue } \
+${DIANN_MIN_FR_MZ/#/--min-fr-mz } \
+${DIANN_MAX_FR_MZ/#/--max-fr-mz } \
+${DIANN_LIB/#/--lib } \
+${DIANN_CUT/#/--cut } \
+${DIANN_MISSED_CLEAVAGES/#/--missed-cleavages } \
+${DIANN_MIN_PEP_LEN/#/--min-pep-len } \
+${DIANN_MAX_PEP_LEN/#/--max-pep-len } \
+${DIANN_MIN_PR_MZ/#/--min-pr-mz } \
+${DIANN_MAX_PR_MZ/#/--max-pr-mz } \
+${DIANN_MIN_PR_CHARGE/#/--min-pr-charge } \
+${DIANN_MAX_PR_CHARGE/#/--max-pr-charge } \
+${DIANN_VAR_MODS/#/--var-mods } \
+${DIANN_MONITOR_MOD/#/--monitor-mod } \
+${DIANN_VAR_MOD_LIST[@]/#/--var_mod } \
+${DIANN_REANALYSE} \
+${DIANN_RELAXED_PROT_INF} \
+${DIANN_SMART_PROFILING} \
+${DIANN_PEAK_CENTER} \
+${DIANN_NO_IFS_REMOVAL} \
+${DIANN_MET_EXCISION} \
+${DIANN_USE_QUANT} \
+"
+
