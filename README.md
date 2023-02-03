@@ -7,57 +7,27 @@ Executing [`run.sh`](src/run.sh) runs the pipeline outlind below. Briefly, it
 3. Executes the processing script [`processing.R`](src/processing.R) within a singularity container
 
 # In greater detail
-## Retrieve singularity image
-[`run.sh`](src/run.sh) first retrieves the singularity image (currently stored on onedrive for
-direct download using `wget`) if it does not exist.
-```bash
-img='r-4.0'
-id='77DD71E598E5B51B'
-auth='AJdCAAZQQrCo9cc'
-if [ ! -f ${img}.sif ]; then
-    wget -O ${img}.sif \
-        "https://onedrive.live.com/download?cid=${id}&resid=${id}%2124983&authkey=${auth}"
-fi
-```
 
-The image was built from [`r-4.0.singularity`](src/r-4.0.singularity) using the sylabs remote 
-builder, i.e.:
-
-```bash
-singularity build --remote src/${img}.sif src/${img}.singularity
-```
-
-# DIA-NN singularity image
-
-The image was built from the recipe file [`diann-1.8.1.def`](src/diann-1.8.1.def) using the sylabs
-remote builder (via web interface).
-```bash
-md5_desired='35644c1d7217f0c65727b8fb9c8bfaae'
-
-module load singularity
-singularity pull \
-    --arch amd64 \
-    --name src/diann-1.8.1.sif \
-    library://wellerca/diann/1.8.1:0.9
-
-md5_actual=$(md5sum src/diann-1.8.1.sif | awk '{print $1}')
-
-if [ ! "${md5_actual}" == "${md5_desired}" ]; then
-    echo  'sif md5 does not match'
-else
-    echo 'sif md5 verified'
-fi
-```
-Note: The container must be called using the `--cleanenv` option, otherwise the container may fail 
-due to collision between system and container libraries.
 
 Testing a run that's submitted to biowulf with the [`run-diann.sh`](src/run-diann.sh) wrapper:
 
+## Running example data
 ```bash
 sbatch src/run-diann.sh \
+    --config config.txt \
     --mzml ./example/raw_MS_mzML/HREC_ETIS_1.mzML \
-    --fasta ./example/uniprot-proteome_Human_UP000005640_20191105.fasta
+    --fasta ./example/uniprot-proteome_Human_UP000005640_20191105.fasta \
+    --out example/
 ```
+
+sbatch src/run-diann.sh \
+    --mzml ./example/raw_MS_mzML/HREC_ETIS_1.mzML \
+    --fasta ./example/uniprot-proteome_Human_UP000005640_20191105.fasta \
+    --clobber \
+    --out ./example
+
+
+
 
 ## Running the processing R script
 After ensuring the singularity image is available, [`run.sh`](src/run.sh) defines input/output
