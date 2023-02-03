@@ -259,7 +259,7 @@ ${DIANN_MIN_PR_CHARGE/#/--min-pr-charge } \
 ${DIANN_MAX_PR_CHARGE/#/--max-pr-charge } \
 ${DIANN_VAR_MODS/#/--var-mods } \
 ${DIANN_MONITOR_MOD/#/--monitor-mod } \
-${DIANN_VAR_MOD_LIST[@]/#/--var_mod } \
+${DIANN_VAR_MOD_LIST[@]/#/--var-mod } \
 ${DIANN_REANALYSE} \
 ${DIANN_RELAXED_PROT_INF} \
 ${DIANN_SMART_PROFILING} \
@@ -267,6 +267,7 @@ ${DIANN_PEAK_CENTER} \
 ${DIANN_NO_IFS_REMOVAL} \
 ${DIANN_MET_EXCISION} \
 ${DIANN_USE_QUANT} \
+${DIANN_FASTA_SEARCH} \
 "
 
 # Check singularity version
