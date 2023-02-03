@@ -11,9 +11,8 @@ SRC_DIR='./src'
 SINGULARITY_IMAGE="${SRC_DIR}/diann-1.8.1.sif"
 
 ARGS="$@"
-echo -e "\nStarting...\n"
-echo -e "command called:\n$(echo $0 $ARGS | sed -e 's/\( --\)/ \\\n   \1/g')\n"
-THREADS='20'
+
+
 # Argument parsing
 usage_error () { echo >&2 "$(basename $0):  $1"; exit 2; }
 assert_argument () { test "$1" != "$EOL" || usage_error "$2 requires an argument"; }
@@ -26,12 +25,14 @@ if [ "$#" != 0 ]; then
 
             # Your options go here.
             --debug) DEBUG='TRUE';;
+            --help) HELP='TRUE';;
             --clobber) CLOBBER='TRUE';;
             --fasta) assert_argument "$1" "$opt"; FASTA_INPUT="$1"; shift;;
             --mzml) assert_argument "$1" "$opt"; MZML="$1"; shift;;
             --raw) assert_argument "$1" "$opt"; RAW="$1"; shift;;
             --dia) assert_argument "$1" "$opt"; DIA="$1"; shift;;
             --out) assert_argument "$1" "$opt"; OUTPUT_DIR="$1"; shift;;
+            --config) assert_argument "$1" "$opt"; CONFIG="$1"; shift;;
       
             # Arguments processing. You may remove any unneeded line after the 1st.
             -|''|[!-]*) set -- "$@" "$opt";;                                          # positional argument, rotate to the end
@@ -46,6 +47,32 @@ if [ "$#" != 0 ]; then
     shift  # $EOL
 fi
 
+preamble() {
+    echo -e '\n\nProtPipe: An all-in-one wrapper for DIA analysis in a singularity container'
+    echo -e 'See GitHub for updates: https://www.github.com/cory-weller/ProtPipe\n'
+    echo -e 'Using DIA-NN version: 1.8.1 ran in singularity 3.x\n'
+}
+
+helpmsg() {
+    echo -e 'Option\t\t\tDescription'
+    echo -e '------\t\t\t-----------'
+    echo -e '--help\t\t\tPrint this message'
+    echo -e '--fasta\t\t\tPeptide library fasta file (required)'
+    echo -e '--dia,--raw,--mzml\tMass spec input to analyze (exactly one required)'
+    echo -e '--out\t\t\tOutput directory (default: current directory)'
+    echo -e '--clobber\t\tIgnore existing files, regenerate and overrwite if necessary\n'
+}
+
+preamble
+
+if [ "${HELP}" == 'TRUE' ]; then
+    helpmsg
+    echo -e '\nexiting due to --help flag\n\n'
+    exit 0
+fi
+
+echo -e "\nStarting...\n"
+echo -e "command called:\n$(echo run-diann.sh $ARGS | sed -e 's/\( --\)/ \\\n   \1/g')\n"
 
 # Argument validation
 BADARGS='FALSE' # initialize
@@ -54,33 +81,62 @@ N_mzml=$(echo ${ARGS} | grep -o  -- '--mzml'  | wc -l)
 N_raw=$(echo ${ARGS} | grep -o  -- '--raw'   | wc -l)
 N_dia=$(echo ${ARGS} | grep -o  -- '--dia'   | wc -l)
 
-# Check debug
+# Check debug option
 if [ "${DEBUG}" == 'TRUE' ]; then
     echo 'INFO: running DEBUG mode due to --debug'
 fi
 
-## If fasta file is unset or empty
+## Check (required) fasta input
 if [ -z "${FASTA_INPUT}" ]; then 
     echo "ERROR: --fasta <input.fa> is required"
     BADARGS='TRUE'
-elif [ "${N_fasta}" -gt 1 ]; then
-    echo "WARNING: multiple --fasta provided. Only proceeding with the last one, ${FASTA_INPUT}"
+else
+    if [ "${N_fasta}" -gt 1 ]; then
+        echo "WARNING: multiple --fasta provided. Only proceeding with the last one, ${FASTA_INPUT}"
+    fi
+    ## If FASTA_INPUT file is defined but does not exist/can't be read
+    if [ ! -r "${FASTA_INPUT}" ]; then
+        echo "ERROR: FASTA input ${FASTA_INPUT} does not exist or is not readable"
+        BADARGS='TRUE'
+    fi
 fi
 
 
-## If no mass spec input given
-if [ -z "${MZML}" ] && [ -z "${RAW}" ] && [ -z "${DIA}" ]; then
-    echo "ERROR: A mass spec input (--mzml --raw or --dai) is required"
+## Check (required) mass spec input
+let N_SPECFILES=${N_mzml}+${N_raw}+${N_dia} 
+if [ "${N_SPECFILES}" -gt 1 ]; then     # If more than one mass spec input is given
+        echo 'ERROR: Multiple mass spec inputs provided. Provide ONE  of --mzml --dia or --raw'
+        BADARGS='TRUE'
+else
+    if [ -z "${MZML}" ] && [ -z "${RAW}" ] && [ -z "${DIA}" ]; then
+        echo "ERROR: --mzml --raw or --dai (mass spec input) is required"
+        BADARGS='TRUE'
+    else
+        ## Only one mass spec is allowed at this point; concatenation of vars is identical to
+        ## Selecting the one provided by user
+        MASS_SPEC_INPUT="${MZML}${DIA}${RAW}"
+        ## If Mass Spec file is defined but does not exist/can't be read
+        if [ ! -r "${MASS_SPEC_INPUT}" ]; then
+            echo "ERROR: Mass spec input ${MASS_SPEC_INPUT} does not exist or is not readable"
+            BADARGS='TRUE'
+        fi
+    fi
+fi
+
+
+
+
+## Check (required) config file input
+if [ -z "${CONFIG}" ]; then
+    echo "ERROR: --config <configfile> is required"
+    BADARGS='TRUE'
+elif [ ! -r "${CONFIG}" ]; then
+    echo "ERROR: provided config file ${CONFIG} cannot be read or does not exist"
     BADARGS='TRUE'
 fi
 
 
-## If more than one mass spec input is given
-let N_SPECFILES=${N_mzml}+${N_raw}+${N_dia}
-if [ "${N_SPECFILES}" -gt 1 ]; then
-        echo 'ERROR: Multiple mass spec inputs provided. Provide ONE  of --mzml --dia or --raw'
-        BADARGS='TRUE'
-fi
+
 
 
 ## If output dir is not set, use current directory
@@ -98,41 +154,10 @@ else
     BADARGS='TRUE'
 fi
 
-## Only one mass spec is allowed at this point; concatenation of vars is identical to
-## Selecting the one provided by user
-MASS_SPEC_INPUT="${MZML}${DIA}${RAW}"
-
-## Sanity check, MASS_SPEC_INPUT variable should exist/be set
-if [ ! -n "${MASS_SPEC_INPUT}" ]; then
-    echo "ERROR: Mass spec input does not exist"
-    echo 'This should not happen!'
-    BADARGS='TRUE'
-fi
-
-## If Mass Spec file is defined but does not exist/can't be read
-if [ ! -r "${MASS_SPEC_INPUT}" ]; then
-    echo "ERROR: Mass spec input ${MASS_SPEC_INPUT} does not exist or is not readable"
-    BADARGS='TRUE'
-fi
-
-## Sanity check, FASTA_INPUT variable should exist/be set
-if [ ! -n "${FASTA_INPUT}" ]; then
-    echo "ERROR: FASTA input does not exist"
-    echo 'This should not happen!'
-    BADARGS='TRUE'
-fi
-
-## If FASTA_INPUT file is defined but does not exist/can't be read
-if [ ! -r "${FASTA_INPUT}" ]; then
-    echo "ERROR: FASTA input ${FASTA_INPUT} does not exist or is not readable"
-    BADARGS='TRUE'
-fi
-
-
 
 # Check for singularity
 if ! command -v singularity &> /dev/null; then
-    echo "WARNING: singularity command not found, attempting to load singularity module"
+    echo "WARNING: singularity command not found, looking for singularity module"
     if ! command -v module &> /dev/null; then
         echo "WARNING: module command not found. Did you mean to run this on an HPC?"
         BADARGS='TRUE'
@@ -143,7 +168,6 @@ if ! command -v singularity &> /dev/null; then
             BADARGS='TRUE'
         else
             echo 'INFO: module singularity found'
-            module load singularity
         fi
     fi
 else
@@ -152,16 +176,24 @@ fi
 
 ## If any of the above checks failed
 if [ "${BADARGS}" == 'TRUE' ]; then
-    echo 'Check arguments and try again.'
+    echo -e '\nCheck arguments and try again.\n'
+    helpmsg
     exit 1
 else
     echo -e '\nSUCCESS: arguments passed validation'
     echo -e '\n###########\nPARAMETERS:\n###########\n'
+    echo -e "Config file:\t${CONFIG}"
     echo -e "Spec Input:\t${MASS_SPEC_INPUT}"
     echo -e "FASTA Input:\t${FASTA_INPUT}"
     echo -e "Output to:\t${OUTPUT_DIR}/"
     echo -e "Singularity:\t${SINGULARITY_IMAGE}\n"
 fi
+
+# Pull remaining args from file
+. ${CONFIG}
+
+echo -e "Imported configuration from ${CONFIG}:\n\n$DIANN_ARGS\n" | sed 's/ --/ \\\n--/g'
+#| sed 's/ --/ \\\n    --/g' 
 
 
 if [ "${DEBUG}" == 'TRUE' ]; then
@@ -174,6 +206,8 @@ if [ "${CLOBBER}" == 'TRUE' ]; then
     echo -e 'INFO: ignoring and re-generating pre-existing files due to --clobber flag\n'
 fi
 
+module load singularity
+
 # build in silico lib
 build_in_silico_lib() {
 echo -e 'INFO: starting generation of in silico spectral library\n'
@@ -181,12 +215,11 @@ singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     diann \
     --fasta ${FASTA_INPUT} \
     --fasta-search \
-    --threads ${THREADS} \
     --out ${OUTPUT_DIR}/report.tsv \
     --predictor \
     --min-fr-mz 200 \
     --max-fr-mz 2000 \
-    --met-excision \
+    ${DIANN_MET_EXCISION} \
     --cut K*,R* \
     --missed-cleavages 2 \
     --min-pep-len 7 \
@@ -197,12 +230,13 @@ singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     --max-pr-charge 4 \
     --unimod4 \
     --var-mods 5 \
-    --var-mod UniMod:35,15.994915,M \
-    --var-mod UniMod:1,42.010565,*n \
+    ${DIANN_VAR_MODS[@]/#/--var_mod } \
     --monitor-mod UniMod:1 \
-    --reanalyse \
-    --relaxed-prot-inf \
-    --smart-profiling
+    ${DIANN_REANALYSE} \
+    ${DIANN_RELAXED_PROT_INF} \
+    ${DIANN_SMART_PROFILING} \
+    ${DIANN_PEAK_CENTER} \
+
 }
 
 analyze_spec_sample() {
@@ -211,7 +245,6 @@ singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     diann \
     --f ${MASS_SPEC_INPUT}   \
     --lib report-lib.predicted.speclib \
-    --threads ${THREADS} \
     --out ${OUTPUT_DIR}/report.tsv \
     --qvalue 0.01 \
     --matrices \
@@ -220,7 +253,7 @@ singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     --predictor \
     --min-fr-mz 200 \
     --max-fr-mz 2000 \
-    --met-excision \
+    ${DIANN_MET_EXCISION} \
     --cut K*,R* \
     --missed-cleavages 2 \
     --min-pep-len 7 \
@@ -234,14 +267,14 @@ singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     --var-mod UniMod:35,15.994915,M \
     --var-mod UniMod:1,42.010565,*n \
     --monitor-mod UniMod:1 \
-    --reanalyse \
-    --relaxed-prot-inf \
-    --smart-profiling \
-    --peak-center \
-    --no-ifs-removal
+    ${DIANN_REANALYSE} \
+    ${DIANN_RELAXED_PROT_INF} \
+    ${DIANN_SMART_PROFILING} \
+    ${DIANN_PEAK_CENTER} \
+    ${DIANN_NO_IFS_REMOVAL}
 }
 
-PREEXIST='FALSE'
+
 # Build in silico spectral library if necessary
 if [ ! -f "${OUTPUT_DIR}/report-lib.predicted.speclib" ]; then 
     build_in_silico_lib && echo -e 'INFO: finished building in silico spectral library\n'
