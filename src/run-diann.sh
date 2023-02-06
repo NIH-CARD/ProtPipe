@@ -226,9 +226,6 @@ fi
 . ${CONFIG}
 
 
-# Print imported configuration to terminal
-echo -e "Imported configuration from ${CONFIG}:\n\n$DIANN_ARGS\n" | sed 's/ --/ \\\n--/g'
-
 
 # DEBUG mode checkpoint
 if [ "${DEBUG}" == 'TRUE' ]; then
@@ -269,6 +266,9 @@ ${DIANN_MET_EXCISION} \
 ${DIANN_USE_QUANT} \
 ${DIANN_FASTA_SEARCH} \
 "
+
+# Print imported configuration to terminal
+echo -e "Imported configuration from ${CONFIG}:\n\n$DIANN_ARGS\n" | sed 's/ --/ \\\n--/g'
 
 # Check singularity version
 
