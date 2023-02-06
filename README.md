@@ -24,9 +24,9 @@ src/run-diann.sh \
 
 # Submit to SLURM
 sbatch src/run-diann.sh \
-    --fasta infile.fasta \
-    --mzml infile.mzML \
-    --out test_output &
+    --fasta example/uniprot-proteome_Human_UP000005640_20191105.fasta \
+    --mzml example/raw_MS_mzML/HREC_ETIS_2.mzML \
+    --out HREC_ETIS_2
 ```
 
 
@@ -181,7 +181,6 @@ diann \
     --threads 24 \
     --verbose 1 \
     --out ./report.tsv \
-    --qvalue 0.01 \
     --matrices \
     --out-lib ./report-lib.tsv \
     --gen-spec-lib \
