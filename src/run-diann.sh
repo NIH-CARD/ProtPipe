@@ -297,11 +297,19 @@ import_config() {
         *)     unset DIANN_GEN_SPEC_LIB ;;
     esac
 
+    case "${DIANN_PREDICTOR}" in
+        TRUE)  DIANN_PREDICTOR='--predictor' ;;
+        True)  DIANN_PREDICTOR='--predictor' ;;
+        true)  DIANN_PREDICTOR='--predictor' ;;
+        *)     unset DIANN_PREDICTOR ;;
+    esac
+
 }
 
 format_args() {
 DIANN_ARGS="\
 ${DIANN_THREADS/#/--threads } \
+${DIANN_OUT_LIB/#/--out-lib } \
 ${DIANN_QVALUE/#/--qvalue } \
 ${DIANN_MIN_FR_MZ/#/--min-fr-mz } \
 ${DIANN_MAX_FR_MZ/#/--max-fr-mz } \
@@ -326,8 +334,7 @@ ${DIANN_MET_EXCISION} \
 ${DIANN_USE_QUANT} \
 ${DIANN_FASTA_SEARCH} \
 ${DIANN_GEN_SPEC_LIB} \
---out-lib TEST2 \
-"
+${DIANN_PREDICTOR} \
 }
 
 check_in_silico_lib() {
@@ -354,6 +361,17 @@ singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
     ${DIANN_ARGS}
 }
 
+run_diann() {
+    echo -e 'INFO: starting DIA-NN\n'
+    echo -e "calling command:\n singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} diann --fasta ${FASTA_INPUT} --f ${MASS_SPEC_INPUT} ${DIANN_ARGS}"
+    singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
+        diann \
+        --fasta ${FASTA_INPUT} \
+        --f ${MASS_SPEC_INPUT} \
+        ${DIANN_ARGS}
+}
+
+
 check_spec_sample() {
     if [ ! -f "${OUTPUT_DIR}/report-lib.tsv" ]; then 
         analyze_spec_sample 
@@ -362,7 +380,7 @@ check_spec_sample() {
         echo -e 'WARNING: This will over-write the existing file.'
         echo -e 'WARNING: Starting in 15 seconds unless interrupted.'
         sleep 16
-        analyze_spec_sample && echo -e 'INFO: finished analyzing mass spec sample\n'
+        analyze_spec_sample && echo -e 'INFO: finished building in silico spectral library\n'
     else
         echo -e 'INFO: mass spec sample already analyzed'
         echo -e 'INFO: rerun with --clobber to delete and re-generate existing files\n'
@@ -422,7 +440,6 @@ print_config                    # Print validated DIA-NN configuration to termin
 stop_if_dryrun                  # Quit before proceeding if --dry-run provided
 
 # Perform DIA-NN steps
-check_in_silico_lib             # Check in silico library and generate if necessary
-check_spec_sample               # Check for protein quantification output; generate if necessary
+run_diann                       # Build in silico library and analyze input
 
 exit 0
