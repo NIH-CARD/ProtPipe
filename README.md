@@ -1,6 +1,47 @@
 # README
 
+![workflow-image](src/workflow.png)
+
+This repository facilitates quick, simple, and reproducible access to Data Independent Acquisition (DIA) proteomics workflows with minimal command line experience.
+
+We include a convenient wrapper script for running DIA-NN inside a pre-built singularity image to first estimate protein abundance from raw mass spec output. Protein abundance estimates (accepting estimates from both `DIA-NN` and `Spectronaut`) can  be processed in a preconfigured R environment, generating QC reports, and various analyses and visualizations.
+
+
 # Quick-start
+
+1. Ensure `singularity` is installed and accessible on your system. Many HPCs (including NIH Biowulf) come with this pre-installed as a module. If your HPC has singularity installed, it will be automatically detected and loaded when necessary.
+2. If you are predicting protein abundances from raw mass spec output, look over and edit any custom `DIA-NN` parameters inside [`config.txt`](config.txt). You can either edit `config.txt` directly (and it will be used by default), or make a copy and save it to a different file name, then reference it with `--config newfilename.txt` when running the wrapper script.
+3. Use the wrapper [`run-diann.sh`](src/run-diann.sh), either submitting to SLURM or running it directly.
+4. R processing TBI
+
+```bash
+# Run directly
+src/run-diann.sh \
+    --fasta infile.fasta \
+    --mzml infile.mzml \
+    --out run_output &
+
+# Submit to SLURM
+sbatch src/run-diann.sh \
+    --fasta infile.fasta \
+    --mzml infile.mzml \
+    --out run_output &
+```
+
+
+<details><summary>Technical</summary>
+The only installation requirement is to have `Singularity` available on your system.
+
+`Singularity` is containerization software that allows an entire pre-configured computing environment to be accessed--reducing installation headaches and improving reproducibility.
+
+# Requirements
+
+# Installation
+
+</details>
+<details><summary>notes</summary>
+
+
 Executing [`run.sh`](src/run.sh) runs the pipeline outlind below. Briefly, it
 1. Retrieves the required pre-built singularity image 
 2. Defines input/output parameters
@@ -21,24 +62,54 @@ The output files of interest are
 | `report.stats.tsv`        | gene group quantities |
 | `report.tsv.tsv`          |  precursor ions identified, quantities, quality metrics and annotations |
 
+---
+</details>
 
 
+<details><summary>Running DIA-NN</summary>
 
-# In Greater Detail
-Testing a run that's submitted to biowulf with the [`run-diann.sh`](src/run-diann.sh) wrapper:
-
-## Running example data
+## Running DIA-NN on example data
 ```bash
+# Submit to SLURM
 sbatch src/run-diann.sh \
+    --config config.txt \
+    --mzml ./example/raw_MS_mzML/HREC_ETIS_1.mzML \
+    --fasta ./example/uniprot-proteome_Human_UP000005640_20191105.fasta \
+    --out example/
+
+# Run Locally
+src/run-diann.sh \
     --config config.txt \
     --mzml ./example/raw_MS_mzML/HREC_ETIS_1.mzML \
     --fasta ./example/uniprot-proteome_Human_UP000005640_20191105.fasta \
     --out example/
 ```
 
+</details>
+
+<details><summary>DIA Analysis</summary>
+
+# Heading
+1. Foo
+2. Bar
+    * Baz
+    * Qux
+
+</details>
+
+<details><summary>More</summary>
+
+---
+
+# In Greater Detail
+Testing a run that's submitted to biowulf with the [`run-diann.sh`](src/run-diann.sh) wrapper:
+
+
+
 sbatch src/run-diann.sh \
     --mzml ./example/raw_MS_mzML/HREC_ETIS_1.mzML \
     --fasta ./example/uniprot-proteome_Human_UP000005640_20191105.fasta \
+    --config config.txt \
     --clobber \
     --out ./example
 
@@ -206,3 +277,5 @@ awk -v lower=${lower} \
 ```bash
 src/tiny-diann-test.sh tiny/tiny.mxML tiny/tiny.fasta 
 ```
+
+</details>
