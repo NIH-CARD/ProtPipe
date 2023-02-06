@@ -289,6 +289,14 @@ import_config() {
         true)  DIANN_USE_QUANT='--use-quant' ;;
         *)     unset DIANN_USE_QUANT ;;
     esac
+
+    case "${DIANN_GEN_SPEC_LIB}" in
+        TRUE)  DIANN_GEN_SPEC_LIB='--gen-spec-lib' ;;
+        True)  DIANN_GEN_SPEC_LIB='--gen-spec-lib' ;;
+        true)  DIANN_GEN_SPEC_LIB='--gen-spec-lib' ;;
+        *)     unset DIANN_GEN_SPEC_LIB ;;
+    esac
+
 }
 
 format_args() {
@@ -317,6 +325,8 @@ ${DIANN_NO_IFS_REMOVAL} \
 ${DIANN_MET_EXCISION} \
 ${DIANN_USE_QUANT} \
 ${DIANN_FASTA_SEARCH} \
+${DIANN_GEN_SPEC_LIB} \
+--out-lib TEST2 \
 "
 }
 
@@ -346,13 +356,13 @@ singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
 
 check_spec_sample() {
     if [ ! -f "${OUTPUT_DIR}/report-lib.tsv" ]; then 
-        analyze_spec_sample && echo -e 'INFO: finished analyzing mass spec sample\n'
+        analyze_spec_sample 
     elif [ "${CLOBBER}" == 'TRUE' ]; then
         echo -e 'WARNING: re-analyzing mass spec sample due to --clobber flag.'
         echo -e 'WARNING: This will over-write the existing file.'
         echo -e 'WARNING: Starting in 15 seconds unless interrupted.'
         sleep 16
-        build_in_silico_lib && echo -e 'INFO: finished building in silico spectral library\n'
+        analyze_spec_sample && echo -e 'INFO: finished analyzing mass spec sample\n'
     else
         echo -e 'INFO: mass spec sample already analyzed'
         echo -e 'INFO: rerun with --clobber to delete and re-generate existing files\n'
@@ -399,8 +409,8 @@ check_fasta_input               # Confirm only 1 fasta input is given, and can b
 check_mass_spec_input           # Confirm only 1 mass spec input is given, and can be read
 check_config_input              # Use config.txt if unspecified; confirm file exists/can be read
 check_output_dir                # Use $PWD if unspecified; confirm write privilege
-check_singularity_exists        # Ensure singularity command can be called or module loaded
-check_singularity_version       # Ensure singularity is v3
+check_singularity_exists
+check_singularity_version
 check_singularity_image         # Pull .sif if necessary; confirm md5sum
 check_arguments_valid           # Print help and exit if any args invalid to this point
 

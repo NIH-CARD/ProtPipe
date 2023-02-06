@@ -55,8 +55,28 @@ src/run-diann.sh \
     --fasta ./example/uniprot-proteome_Human_UP000005640_20191105.fasta \
     --out example/
 ```
+# Subsetting mzML file for testing purposes
+from [here](https://rformassspectrometry.github.io/Spectra/articles/Spectra.html#exporting-spectra):
+```R
+# In R/4.2
+BiocInstaller::install('mzR')
+BiocInstaller::install('Spectra')
+
+library(Spectra)
+
+# load mzML using `Spectra`
+sp <- Spectra('HREC_ETIS_1.mzML')
+
+# write first 800 records using `export` and `MsBackendMzR()`
+export(sp[1:8000], MsBackendMzR(), file='test.mzML')
+```
 
 # Processing DIA Estimates
+
+# To Do
+* update R in singularity image? (as `Spectra` package requires R/4.2)
+
+
 
 
 <details><summary>extra to be changed</summary>
