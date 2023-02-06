@@ -335,6 +335,7 @@ ${DIANN_USE_QUANT} \
 ${DIANN_FASTA_SEARCH} \
 ${DIANN_GEN_SPEC_LIB} \
 ${DIANN_PREDICTOR} \
+"
 }
 
 check_in_silico_lib() {
