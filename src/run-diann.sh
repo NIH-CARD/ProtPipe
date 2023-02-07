@@ -236,74 +236,80 @@ import_config() {
     . ${CONFIG}
     case "${DIANN_REANALYSE}" in
         TRUE)  DIANN_REANALYSE='--reanalyse' ;;
-        True)  DIANN_REANALYSE='--reanalyse' ;;
-        true)  DIANN_REANALYSE='--reanalyse' ;;
-        *)     unset DIANN_REANALYSE ;;
+        FALSE) unset DIANN_REANALYSE ;;
+        *)     echo 'ERROR: DIANN_REANALYSE must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_RELAXED_PROT_INF}" in
         TRUE)  DIANN_RELAXED_PROT_INF='--relaxed-prot-inf' ;;
-        True)  DIANN_RELAXED_PROT_INF='--relaxed-prot-inf' ;;
-        true)  DIANN_RELAXED_PROT_INF='--relaxed-prot-inf' ;;
-        *)     unset DIANN_RELAXED_PROT_INF ;;
+        FALSE) unset DIANN_RELAXED_PROT_INF ;;
+        *)     echo 'ERROR: DIANN_RELAXED_PROT_INF must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_SMART_PROFILING}" in
         TRUE)  DIANN_SMART_PROFILING='--smart-profiling' ;;
-        True)  DIANN_SMART_PROFILING='--smart-profiling' ;;
-        true)  DIANN_SMART_PROFILING='--smart-profiling' ;;
-        *)     unset DIANN_SMART_PROFILING ;;
+        FALSE) unset DIANN_SMART_PROFILING ;;
+        *)     echo 'ERROR: DIANN_SMART_PROFILING must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_PEAK_CENTER}" in
         TRUE)  DIANN_PEAK_CENTER='--peak-center' ;;
-        True)  DIANN_PEAK_CENTER='--peak-center' ;;
-        true)  DIANN_PEAK_CENTER='--peak-center' ;;
-        *)     unset DIANN_PEAK_CENTER ;;
+        FALSE) unset DIANN_PEAK_CENTER ;;
+        *)     echo 'ERROR: DIANN_PEAK_CENTER must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_NO_IFS_REMOVAL}" in
         TRUE)  DIANN_NO_IFS_REMOVAL='--no-ifs-removal' ;;
-        True)  DIANN_NO_IFS_REMOVAL='--no-ifs-removal' ;;
-        true)  DIANN_NO_IFS_REMOVAL='--no-ifs-removal' ;;
-        *)     unset DIANN_NO_IFS_REMOVAL ;;
+        FALSE) unset DIANN_NO_IFS_REMOVAL ;;
+        *)     echo 'ERROR: DIANN_NO_IFS_REMOVAL must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_MET_EXCISION}" in
         TRUE)  DIANN_MET_EXCISION='--met-excision' ;;
-        True)  DIANN_MET_EXCISION='--met-excision' ;;
-        true)  DIANN_MET_EXCISION='--met-excision' ;;
-        *)     unset DIANN_MET_EXCISION ;;
+        FALSE) unset DIANN_MET_EXCISION ;;
+        *)     echo 'ERROR: DIANN_MET_EXCISION must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_FASTA_SEARCH}" in
         TRUE)  DIANN_FASTA_SEARCH='--fasta-search' ;;
-        True)  DIANN_FASTA_SEARCH='--fasta-search' ;;
-        true)  DIANN_FASTA_SEARCH='--fasta-search' ;;
-        *)     unset DIANN_FASTA_SEARCH ;;
+        FALSE) unset DIANN_FASTA_SEARCH ;;
+        *)     echo 'ERROR: DIANN_FASTA_SEARCH must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_USE_QUANT}" in
         TRUE)  DIANN_USE_QUANT='--use-quant' ;;
-        True)  DIANN_USE_QUANT='--use-quant' ;;
-        true)  DIANN_USE_QUANT='--use-quant' ;;
-        *)     unset DIANN_USE_QUANT ;;
+        FALSE) unset DIANN_USE_QUANT ;;
+        *)     echo 'ERROR: DIANN_USE_QUANT must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_GEN_SPEC_LIB}" in
         TRUE)  DIANN_GEN_SPEC_LIB='--gen-spec-lib' ;;
-        True)  DIANN_GEN_SPEC_LIB='--gen-spec-lib' ;;
-        true)  DIANN_GEN_SPEC_LIB='--gen-spec-lib' ;;
-        *)     unset DIANN_GEN_SPEC_LIB ;;
+        FALSE) unset DIANN_GEN_SPEC_LIB ;;
+        *)     echo 'ERROR: DIANN_GEN_SPEC_LIB must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
     case "${DIANN_PREDICTOR}" in
         TRUE)  DIANN_PREDICTOR='--predictor' ;;
-        True)  DIANN_PREDICTOR='--predictor' ;;
-        true)  DIANN_PREDICTOR='--predictor' ;;
-        *)     unset DIANN_PREDICTOR ;;
+        FALSE) unset DIANN_PREDICTOR ;;
+        *)     echo 'ERROR: DIANN_PREDICTOR must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
     esac
 
+    case "${DIANN_MATRICES}" in
+        TRUE)  DIANN_MATRICES='--matrices' ;;
+        FALSE) unset DIANN_MATRICES ;;
+        *)     echo 'ERROR: DIANN_MATRICES must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
+    esac
+
+    case "${DIANN_REANNOTATE}" in
+        TRUE)  DIANN_REANNOTATE='--reannotate' ;;
+        FALSE) unset DIANN_REANNOTATE ;;
+        *)     echo 'ERROR: DIANN_REANNOTATE must be TRUE or FALSE' && BADCONFIG='TRUE' ;;
+    esac
+
+    if [ "${BADCONFIG}" == 'TRUE' ]; then
+        echo 'Check configuration and try again.'
+        exit 1
+    fi
 }
 
 format_args() {
@@ -338,29 +344,29 @@ ${DIANN_PREDICTOR} \
 "
 }
 
-check_in_silico_lib() {
-    if [ ! -f "${OUTPUT_DIR}/report-lib.predicted.speclib" ]; then 
-        build_in_silico_lib && echo -e 'INFO: finished building in silico spectral library\n'
-    elif [ "${CLOBBER}" == 'TRUE' ]; then
-        echo -e 'WARNING: re-building in silico spectral library due to --clobber flag.'
-        echo -e 'WARNING: This will over-write the existing file.'
-        echo -e 'WARNING: Starting in 15 seconds unless interrupted.'
-        sleep 16
-        build_in_silico_lib && echo -e 'INFO: finished building in silico spectral library\n'
-    else
-        echo -e 'INFO: in silico spectral library already exists'
-        echo -e 'INFO: rerun with --clobber to delete and re-generate existing files\n'
-    fi
-}
+# check_in_silico_lib() {
+#     if [ ! -f "${OUTPUT_DIR}/report-lib.predicted.speclib" ]; then 
+#         build_in_silico_lib && echo -e 'INFO: finished building in silico spectral library\n'
+#     elif [ "${CLOBBER}" == 'TRUE' ]; then
+#         echo -e 'WARNING: re-building in silico spectral library due to --clobber flag.'
+#         echo -e 'WARNING: This will over-write the existing file.'
+#         echo -e 'WARNING: Starting in 15 seconds unless interrupted.'
+#         sleep 16
+#         build_in_silico_lib && echo -e 'INFO: finished building in silico spectral library\n'
+#     else
+#         echo -e 'INFO: in silico spectral library already exists'
+#         echo -e 'INFO: rerun with --clobber to delete and re-generate existing files\n'
+#     fi
+# }
 
-build_in_silico_lib() {
-echo -e 'INFO: starting generation of in silico spectral library\n'
-echo -e "calling command:\n singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} diann --fasta ${FASTA_INPUT} ${DIANN_ARGS}"
-singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
-    diann \
-    --fasta ${FASTA_INPUT} \
-    ${DIANN_ARGS}
-}
+# build_in_silico_lib() {
+# echo -e 'INFO: starting generation of in silico spectral library\n'
+# echo -e "calling command:\n singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} diann --fasta ${FASTA_INPUT} ${DIANN_ARGS}"
+# singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
+#     diann \
+#     --fasta ${FASTA_INPUT} \
+#     ${DIANN_ARGS}
+# }
 
 run_diann() {
     echo -e 'INFO: starting DIA-NN\n'
@@ -373,31 +379,31 @@ run_diann() {
 }
 
 
-check_spec_sample() {
-    if [ ! -f "${OUTPUT_DIR}/report-lib.tsv" ]; then 
-        analyze_spec_sample 
-    elif [ "${CLOBBER}" == 'TRUE' ]; then
-        echo -e 'WARNING: re-analyzing mass spec sample due to --clobber flag.'
-        echo -e 'WARNING: This will over-write the existing file.'
-        echo -e 'WARNING: Starting in 15 seconds unless interrupted.'
-        sleep 16
-        analyze_spec_sample && echo -e 'INFO: finished building in silico spectral library\n'
-    else
-        echo -e 'INFO: mass spec sample already analyzed'
-        echo -e 'INFO: rerun with --clobber to delete and re-generate existing files\n'
+# check_spec_sample() {
+#     if [ ! -f "${OUTPUT_DIR}/report-lib.tsv" ]; then 
+#         analyze_spec_sample 
+#     elif [ "${CLOBBER}" == 'TRUE' ]; then
+#         echo -e 'WARNING: re-analyzing mass spec sample due to --clobber flag.'
+#         echo -e 'WARNING: This will over-write the existing file.'
+#         echo -e 'WARNING: Starting in 15 seconds unless interrupted.'
+#         sleep 16
+#         analyze_spec_sample && echo -e 'INFO: finished building in silico spectral library\n'
+#     else
+#         echo -e 'INFO: mass spec sample already analyzed'
+#         echo -e 'INFO: rerun with --clobber to delete and re-generate existing files\n'
 
-    fi
-}
+#     fi
+# }
 
-analyze_spec_sample() {
-echo -e 'INFO: starting analyzing mass spec sample\n'
-echo -e "calling command:\n singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} diann --f ${MASS_SPEC_INPUT} --fasta ${FASTA_INPUT} ${DIANN_ARGS}"
-singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
-    diann \
-    --f ${MASS_SPEC_INPUT} \
-    --fasta ${FASTA_INPUT} \
-    ${DIANN_ARGS}
-}
+# analyze_spec_sample() {
+# echo -e 'INFO: starting analyzing mass spec sample\n'
+# echo -e "calling command:\n singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} diann --f ${MASS_SPEC_INPUT} --fasta ${FASTA_INPUT} ${DIANN_ARGS}"
+# singularity exec --cleanenv -H ${PWD} ${SINGULARITY_IMAGE} \
+#     diann \
+#     --f ${MASS_SPEC_INPUT} \
+#     --fasta ${FASTA_INPUT} \
+#     ${DIANN_ARGS}
+# }
 
 stop_if_dryrun() {
     if [ "${DRYRUN}" == 'TRUE' ]; then
