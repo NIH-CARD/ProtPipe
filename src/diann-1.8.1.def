@@ -1,0 +1,24 @@
+BootStrap: library
+From: ubuntu:jammy
+
+%runscript
+    echo "singularity container for diann 1.8.1"
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y wget libgomp1
+    
+    cd /opt
+    mkdir diann
+    cd diann
+
+    wget https://github.com/vdemichev/DiaNN/releases/download/1.8.1/diann_1.8.1.tar.gz
+    tar -zxf diann_1.8.1.tar.gz && rm diann_1.8.1.tar.gz
+    chmod +x diann-1.8.1
+    ln -s diann-1.8.1 diann
+    
+    unset DEBIAN_FRONTEND
+    
+%environment
+    export PATH=/opt/diann:$PATH
