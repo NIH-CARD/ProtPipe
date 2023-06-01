@@ -1,6 +1,6 @@
 # README
 
-![workflow-image](src/workflow.png)
+![workflow-image](src/ProtPipe.png)
 
 This repository facilitates quick, simple, and reproducible access to Data Independent Acquisition (DIA) proteomics workflows with minimal command line experience.
 
