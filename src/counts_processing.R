@@ -486,6 +486,7 @@ if ((ncol(dat)-3)>opt$neighbors) {
 
 tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
     for (treatment in conditions) {
+      print(paste0(treatment, ' vs ', control, ' DE analysis'))
       treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
         if (length(treatment_sample_names)==0) {next}
         control <- unique(design[condition == treatment, control])
@@ -493,7 +494,7 @@ tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
         if (length(control_sample_names)==0) {next}
         if(treatment != control) {
             t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
-            ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '-vs-', control, '.tsv'))
+            ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
             plot_volcano(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
             enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
         }

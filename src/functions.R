@@ -112,12 +112,22 @@ melt_intensity_table <- function(DT) {
 
 plot_pg_counts <- function(DT, output_dir, output_filename) {
   n_samples <- nrow(DT)
-  p=ggplot(DT, aes(x=Sample, y=N)) +
-    geom_bar(stat="identity", fill="steelblue")+
-    theme_classic()+
-    labs(fill = "",x="Sample",y='Number of Protein Groups')+
-    scale_x_discrete(guide = guide_axis(angle = 90))+ 
-    geom_text(aes(label=N, y=N + (0.05*max(pgcounts$N))))
+  if (n_samples > 20) {
+    p=ggplot(DT, aes(x=Sample, y=N)) +
+      geom_bar(stat="identity", fill="steelblue")+
+      theme_classic()+
+      labs(fill = "",x="Sample",y='Number of Protein Groups')+
+      scale_x_discrete(guide = guide_axis(angle = 90))
+  }
+  if (n_samples < 20) {
+    p=ggplot(DT, aes(x=Sample, y=N)) +
+      geom_bar(stat="identity", fill="steelblue")+
+      theme_classic()+
+      labs(fill = "",x="Sample",y='Number of Protein Groups')+
+      scale_x_discrete(guide = guide_axis(angle = 90))+ 
+      geom_text(aes(label=N, y=N + (0.05*max(pgcounts$N))))
+  }
+  
   if (n_samples>50){
     ggsave(plot = p,filename = paste0(output_dir, output_filename),width = n_samples/10,height = 6)
   }else {
@@ -382,10 +392,10 @@ get_umap <- function(DT, neighbors) {
 
 plot_umap <- function(DT, output_dir, output_filename) {
     g <- ggplot(DT, aes(x=UMAP1, y=UMAP2, color=condition)) +
-    geom_point() +
-    theme_few() 
+    geom_point(size=4) +
+    theme_classic() 
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
-    ggsave(g, filename=paste0(output_dir, output_filename), height=15, width=20, units='cm')
+    ggsave(g, filename=paste0(output_dir, output_filename), height = 7,width = 9)
 }
 
 # filter_pgs <- function(DT.all, treatment_sample_names, treatment, control)  {
@@ -795,6 +805,7 @@ get_ppi <- function(protein,DT,lfc_threshold, fdr_threshold) {
   string_db <- STRINGdb$new( version="11.5", species=9606, score_threshold=200, network_type="functional", input_directory="")
   protein_map=string_db$mp(protein)
   up_genes <- up_genes %>% string_db$map("Genes",removeUnmappedRows = TRUE)
+  print("PPI")
   interactions=string_db$get_interactions(c(protein_map,up_genes$STRING_id))
   pro_interactions_from=interactions[interactions$from==protein_map,2:3]
   colnames(pro_interactions_from)=c('STRING_id','ppi_score')
@@ -807,6 +818,7 @@ get_ppi <- function(protein,DT,lfc_threshold, fdr_threshold) {
 }
 
 plot_PPI_rank <- function(t_test,PPI_score,lfc_threshold, fdr_threshold, output_dir, output_filename) {
+  print("Plot PPI rank")
   up_genes=t_test[which(t_test$log2FC>=lfc_threshold&t_test$p.adj<=fdr_threshold),]
   up_genes=up_genes[order(up_genes$log2FC,decreasing = T),]
   up_genes$rank=1:nrow(up_genes)
@@ -842,6 +854,7 @@ plot_PPI_ven <- function(protein,t_test,lfc_threshold, fdr_threshold, output_dir
   protein_map=string_db$mp(protein)
   up_genes <- up_genes %>% string_db$map("Genes",removeUnmappedRows = TRUE)
   neighbors=string_db$get_neighbors(protein_map)
+  print("PPI Ven")
   ven=list(
     DE=unique(up_genes$STRING_id),
     String_db=unique(neighbors))
@@ -857,6 +870,109 @@ plot_PPI_ven <- function(protein,t_test,lfc_threshold, fdr_threshold, output_dir
        edges = FALSE,
        quantities = list(type = c("counts")))
   dev.off()
+  
+}
+
+
+get_mhcflurry_input=function(hla_typing,dat.long,sample,MHC_dir){
+  print(paste0("Generate the MHCflurry input file of ",sample))
+  sample_allele=hla_typing[hla_typing$sample_name==sample,]
+  sample_pep=dat.long[grep(sample,dat.long$Sample),]
+  sample_pep$lengh=nchar(sample_pep$Peptide_Sequence)
+  sample_pep=sample_pep[sample_pep$lengh<16,]
+  sample_allele_peptide=data.frame()
+  for (allele in allele_sample$allele) {
+    tmp=data.frame('allele'=allele,
+                   'peptide'=unique(sample_pep$Peptide_Sequence))
+    sample_allele_peptide=rbind(sample_allele_peptide,tmp)
+  }
+  cat(paste0('   -> ', MHC_dir,sample, '_allele_peptide.csv', '\n'))
+  write.csv(sample_allele_peptide,file = paste0(MHC_dir,sample, '_allele_peptide.csv'),row.names = F)
+}
+
+
+runing_mhcflurry <- function(sample) {
+  print(paste0("Runing MHCflurry for ",sample))
+  command <- paste0('source activate mhcflurry-env', '\n',"mhcflurry-predict ",MHC_dir,sample, '_allele_peptide.csv'," --out " ,MHC_dir,sample,"_mhc_predictions.csv")
+  cat(paste0('   -> ', MHC_dir,sample,"_mhc_predictions.csv", '\n'))
+  system(command)
+  
+}
+
+plot_mhc_affinity <- function(sample) {
+  print(paste0("Plot for the Peptide/MHC I binding affinity prediction of ",sample))
+  sample_prediction=fread(paste0(MHC_dir,sample,"_mhc_predictions.csv"))
+  sample_prediction=sample_prediction[sample_prediction$mhcflurry_affinity<200
+                                      & sample_prediction$mhcflurry_affinity_percentile<2,]
+  sample_prediction=sample_prediction[order(sample_prediction$mhcflurry_affinity),]
+  sample_prediction$rank=1:nrow(sample_prediction)
+ 
+  g <- ggplot(sample_prediction, aes(x=-log10(mhcflurry_affinity), y=-log2(mhcflurry_affinity_percentile+1))) +
+    geom_point(aes(color = allele))  +
+    theme_classic()+
+    geom_label_repel(
+      data = subset(sample_prediction[1:5,]),
+      aes(label = peptide),
+      size = 3,
+      box.padding = unit(0.35, "lines"),
+      point.padding = unit(0.3, "lines"))+
+    xlab('-log10(MHC Affinity)') +
+    ylab('-log2(MHC Affinity Percentile))')
+  ggsave(g, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele.pdf"),width = 8,height = 8)
+  cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele.pdf", '\n'))
+  
+  
+  p <- ggplot(sample_prediction, aes(y=-log2(mhcflurry_affinity), x=rank)) +
+    geom_point(aes(color = allele))  +
+    theme_classic()+
+    geom_label_repel(
+      data = subset(sample_prediction[1:5,]),
+      aes(label = peptide),
+      size = 3,
+      box.padding = unit(0.35, "lines"),
+      point.padding = unit(0.3, "lines"))+
+    xlab('Rank') +
+    ylab('-log2(MHC Affinity)')
+  ggsave(p, filename=paste0(MHC_dir,sample,"_mhc_affinity_rank.pdf"),width = 8,height = 8)
+  cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_rank.pdf", '\n'))
+  
+  
+  label_text=data.frame()
+  for (hla in unique(sample_prediction$allele)) {
+    tmp=sample_prediction[sample_prediction$allele == hla,]
+    tmp=tmp[1:3,]
+    label_text=rbind(label_text,tmp)
+  }
+  f <- ggplot(sample_prediction, aes(x=-log10(mhcflurry_affinity), y=-log2(mhcflurry_affinity_percentile+1))) +
+    geom_point(aes(color = allele))  + 
+    facet_wrap(~ allele, ncol=2,scales="free_y")+
+    theme_classic()+
+    geom_label_repel(
+      data = subset(label_text),
+      aes(label = peptide),
+      size = 2)+
+    xlab('-log10(MHC Affinity)') +
+    ylab('-log2(MHC Affinity Percentile))')
+  
+  ggsave(f, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele_separated.pdf"),width = 8,height = 8)
+  cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele_separated.pdf", '\n'))
+  
+  f <- ggplot(sample_prediction, aes(x=allele, y=log2(mhcflurry_affinity))) +
+    geom_dotplot(binaxis='y',, stackdir='center',binwidth = 1/50,color='#E69F00',fill="#E69F00")+
+    theme_classic()
+  ggsave(f, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele_dotplot.pdf"),width = 8,height = 8)
+  cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele_dotplot.pdf", '\n'))
+  
+  
+  number=sample_prediction[, .N, by=allele]
+  p=ggplot(number, aes(x=allele, y=N)) +
+    geom_bar(stat="identity", fill="steelblue")+
+    theme_classic()+
+    labs(fill = "",x="",y='Number of Peptide')+
+    scale_x_discrete(guide = guide_axis(angle = 90))
+  ggsave(p, filename=paste0(MHC_dir,sample,"_mhc_affinity_peptide_count.pdf"),width = 8,height = 8)
+  cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_peptide_count.pdf", '\n'))
+  
   
 }
 

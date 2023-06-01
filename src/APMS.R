@@ -28,6 +28,15 @@ option_list = list(
         )
     ),
     make_option(
+      "--ip",
+      default=NULL,
+      help=paste(
+        'Protein name of the IP',
+        'Required.',
+        sep=optparse_indent
+      )
+    ),
+    make_option(
         "--labelgene",
         dest="labelgene",
         default=NULL, 
@@ -212,6 +221,11 @@ if (is.null(opt$design)) {
     badargs <- TRUE
 }
 
+if (is.null(opt$ip)) {
+  cat("ERROR: --ip <file> must be provided\n")
+  badargs <- TRUE
+}
+
 if (badargs == TRUE) {
     quit(status=1)
 }
@@ -264,8 +278,8 @@ if(! dir.exists(EA_dir)){
 }
 
 PPI_dir <- paste0(opt$outdir, '/PPI_analysis/')
-if(! dir.exists(EA_dir)){
-  dir.create(EA_dir, recursive = T)
+if(! dir.exists(PPI_dir)){
+  dir.create(PPI_dir, recursive = T)
 }
 
 #### IMPORT AND FORMAT DATA#########################################################################

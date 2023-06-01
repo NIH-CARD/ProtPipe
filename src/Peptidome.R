@@ -160,6 +160,15 @@ option_list = list(
         'Default: 0.01',
         sep=optparse_indent
       )
+    ),
+    make_option(
+      "--hla",
+      dest = 'HLA_typing',
+      default=NULL,
+      help=paste(
+        'The HLA typing information.',
+        sep=optparse_indent
+      )
     )
 )
 
@@ -192,10 +201,6 @@ if (is.null(opt$pepfile)) {
     badargs <- TRUE
 }
 
-if (is.null(opt$design)) {
-    cat("ERROR: --design <file> must be provided\n")
-    badargs <- TRUE
-}
 
 if (badargs == TRUE) {
     quit(status=1)
@@ -237,15 +242,22 @@ if(! dir.exists(cluster_dir)){
     dir.create(cluster_dir, recursive = T)
 }
 
-
-DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
-if(! dir.exists(DI_dir)){
+if (!is.null(opt$design)) {
+  DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
+  if(! dir.exists(DI_dir)){
     dir.create(DI_dir, recursive = T)
+    }
+  EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
+  if(! dir.exists(EA_dir)){
+    dir.create(EA_dir, recursive = T)
+  }
 }
 
-EA_dir <- paste0(opt$outdir, '/Enrichiment_analysis/')
-if(! dir.exists(EA_dir)){
-  dir.create(EA_dir, recursive = T)
+if (!is.null(opt$hla)) {
+  MHC_dir <- paste0(opt$outdir, '/MHC_Prediction/')
+  if(! dir.exists(MHC_dir)){
+    dir.create(MHC_dir, recursive = T)
+  }
 }
 
 
@@ -381,58 +393,6 @@ if (!is.null(opt$exclude)) {
     }, 'ERROR: failed!')
 }
 
-tryTo('INFO: Validating experimental design',{
-    print(design[])
-    cat('\n')
-    conditions <- unique(design$condition)
-    for (condition.i in conditions) {
-        samples <- design[condition == condition.i, sample_name]
-        control <- unique(design[condition == condition.i, control])
-        if (length(control) != 1) {
-            cat(paste0('ERROR: condition ', condition.i, ' maps to multiple controls: ', control, '\n'))
-            cat(paste0('       Check the design matrix and esure no more than one control label per condition\n'))
-            quit(exit=1)
-        } else {
-            cat(paste0('INFO: condition ', condition.i, ' maps to control ', control, '\n'))
-        }
-    }
-    cat(paste0('INFO: all conditions pass check (i.e. map to one control condition)\n'))
-}, 'ERROR: failed!')
-
-
-## Exclude samples with N protein groups < opt$sds away from mean
-## Default value: 3 standard deviations, modifiable with --sds [N]
-tryTo('INFO: Identifying samples with protein group count outliers',{
-    cat(paste0('INFO: defining outliers as samples with [N protein groups] > ', opt$sds, ' standard deviations from the mean\n'))
-    stdev <- sd(pgcounts[,N])
-    mean_count <- mean(pgcounts[,N])
-    min_protein_groups <- floor(mean_count - (opt$sds * stdev))
-    max_protein_groups <- ceiling(mean_count + (opt$sds * stdev))
-    cat(paste0('INFO: Tolerating protein group counts in the range [', min_protein_groups,',',max_protein_groups,']'))
-    low_count_samples <- as.character(pgcounts[N < min_protein_groups, Sample])
-    high_count_samples <- as.character(pgcounts[N > max_protein_groups, Sample])
-    if(length(low_count_samples)==0) {
-        cat('\nINFO: No low group count samples to remove\n')
-    } else {
-        cat(paste0('\nINFO: Pruning low-count outlier ', low_count_samples))
-        cat('\n\n')
-        print(pgcounts[Sample %in% low_count_samples])
-        cat('\n')
-        dat[, c(low_count_samples) := NULL]    # remove sample columns from wide table
-        dat.long <- dat.long[! (Sample %in% low_count_samples)] # remove rows from long table
-    }
-    if(length(high_count_samples)==0) {
-        cat('INFO: No high group count samples to remove\n')
-    } else {
-        cat(paste0('\nINFO: Pruning high-count outlier ', high_count_samples))
-        cat('\n')
-        print(pgcounts[Sample %in% high_count_samples])
-        dat[, c(high_count_samples) := NULL]    # remove sample columns from wide table
-        dat.long <- dat.long[! (Sample %in% high_count_samples)] # remove rows from long table
-    }
-}, 'ERROR: failed!')
-
-
 
 #### CLUSTERING ####################################################################################
 
@@ -465,8 +425,27 @@ if ((ncol(dat)-3)>opt$neighbors) {
 
 
 #### DIFFERENTIAL INTENSITY ########################################################################
+if (!is.null(opt$design)) {
+  tryTo('INFO: Validating experimental design',{
+    print(design[])
+    cat('\n')
+    conditions <- unique(design$condition)
+    for (condition.i in conditions) {
+      samples <- design[condition == condition.i, sample_name]
+      control <- unique(design[condition == condition.i, control])
+         if (length(control) != 1) {
+             cat(paste0('ERROR: condition ', condition.i, ' maps to multiple controls: ', control, '\n'))
+             cat(paste0('       Check the design matrix and esure no more than one control label per condition\n'))
+      quit(exit=1)
+    } else {
+      cat(paste0('INFO: condition ', condition.i, ' maps to control ', control, '\n'))
+    }
+  }
+    cat(paste0('INFO: all conditions pass check (i.e. map to one control condition)\n'))
+}, 'ERROR: failed!')
 
-tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
+
+  tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
     for (treatment in conditions) {
       treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
         if (length(treatment_sample_names)==0) {next}
@@ -481,16 +460,28 @@ tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
         }
     }
 }, 'ERROR: failed!')
-
-
-#### PPI ########################################################################
-tryTo('INFO: Running PPI analysis',{
-  PPI_score=get_ppi(opt$ip,t_test, opt$lfc_threshold, opt$fdr_threshold)
-  ezwrite(PPI_score[order(PPI_score$ppi_score),], PPI_dir, paste0(opt$ip, '_ppi.tsv'))
-  plot_PPI_rank(t_test, PPI_score, opt$lfc_threshold, opt$fdr_threshold,PPI_dir, paste0(opt$ip, '_PPI_rank.pdf'))
-  plot_PPI_ven(opt$ip,t_test,opt$lfc_threshold, opt$fdr_threshold, PPI_dir, paste0(opt$ip, '_PPI_ven.pdf'))
   
-}, 'ERROR: failed!')
+  
+
+}
+
+#### MHC BINDING PREDICTION########################################################################
+if (!is.null(opt$hla)) {
+  tryTo('INFO:Peptide/MHC I binding affinity prediction',{
+    hla_typing=fread(opt$hla)
+    
+    for (sample in unique(hla_typing$sample_name)) {
+      #Generate the MHCflurry input file
+      get_mhcflurry_input(hla_typing,dat.long,sample,MHC_dir)
+      # Using the system() function to run the mhcflurry
+      runing_mhcflurry(sample)
+      #Plot for the Peptide/MHC I binding affinity prediction
+      plot_mhc_affinity(sample)
+    }
+  }, 'ERROR: failed!')
+}
+
+
 
 
 quit()
