@@ -50,7 +50,7 @@ Rscript src/counts_processing.R --pgfile iPSC_neuron/luke.csv --design iPSC_neur
 # Processing AP-MS data analysis
 
 ```bash
-Rscript src/APMS.R --pgfile apms.csv --design design_matrix_apms.csv --out APMS/ --ip UNC13A
+Rscript src/APMS.R --pgfile APMS/apms.csv --design APMS/design_matrix_apms.csv --out APMS/ --ip UNC13A
 ```
 
 # Processing Immunopeptidome data analysis
