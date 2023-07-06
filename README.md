@@ -32,8 +32,9 @@ sbatch src/diann.sh --cfg config.txt
 src/diann.sh --cfg config.txt
 ```
 
-# Processing total protein intensity estimates
-
+# Post-analysis
+## Processing total protein intensity estimates
+The required documents are the csv or tsv file from the Spectronaut, design matrix csv file(example shown in folder example/design_matrix.csv).
 ```bash
 src/analyze.sh --pgfile TEST/report.pg_matrix.tsv --design TEST/design.tsv --out TEST/
 ```
@@ -47,13 +48,14 @@ Rscript src/counts_processing.R --pgfile iPSC_neuron/luke.csv --design iPSC_neur
 
 </details>
 
-# Processing AP-MS data analysis
-
+## Processing AP-MS data analysis
+The required documents are the csv or tsv file from the Spectronaut, design matrix csv file(example shown in folder example/design_matrix.csv) and the gene name for the pulling down.
 ```bash
 Rscript src/APMS.R --pgfile APMS/apms.csv --design APMS/design_matrix_apms.csv --out APMS/ --ip UNC13A
 ```
 
-# Processing Immunopeptidome data analysis
+## Processing Immunopeptidome data analysis
+The required documents are the csv or tsv file from the FragPip, HLA_typing csv file(example shown in folder example/HLA_typing.csv).
 
 ```bash
 Rscript src/Peptidome.R --pepfile peptidome/combined_peptide.tsv  --out peptidome/ --hla peptidome/HLA_typing.csv
