@@ -22,23 +22,23 @@ fi
 
 
 #### R ANALYSIS ####################################################################################
-r_version='r/4.0:1.3'
 r_sif="src/R.sif"
-r_sif_md5_desired='f09066e783273ac200291fa7428d3ec3'
+r_sif_sha256_desired='cfab1ee7f61e2af5dff7b832ce28768ce5df2ab949c482a5bd94a91383423bb5'
 if [ ! -f "${r_sif}" ]; then
-    echo "INFO: Pulling ${r_sif} from remote library://wellerca/${r_version}" 
-    singularity pull ${r_sif} library://wellerca/${r_version}
+    echo "INFO: pulling image from Singularity cloud"
+    singularity pull --arch amd64 library://wellerca/r/4.0:sha256.cfab1ee7f61e2af5dff7b832ce28768ce5df2ab949c482a5bd94a91383423bb5
+    mv 4.0_sha256.cfab1ee7f61e2af5dff7b832ce28768ce5df2ab949c482a5bd94a91383423bb5.sif "${r_sif}"
 else
     echo "INFO: ${r_sif} already exists, skipping download"
 fi
 
-r_sif_md5_actual=$(md5sum "${r_sif}" | awk '{print $1}')
+r_sif_sha256_actual=$(sha256sum "${r_sif}" | awk '{print $1}')
 
-if [ ! "${r_sif_md5_actual}" == "${r_sif_md5_desired}" ]; then
-    echo "ERROR: ${r_sif} md5 sum does not pass check. Possibly corrupted? Delete and try again."
+if [ ! "${r_sif_sha256_actual}" == "${r_sif_sha256_desired}" ]; then
+    echo "ERROR: ${r_sif} sha256sum does not pass check. Possibly corrupted? Delete or clear singularity cache and try again."
     exit 1
 else
-    echo "INFO: ${r_sif} md5 sum passes check"
+    echo "INFO: ${r_sif} sha256sum sum passes check"
 fi
 
 r_processing_script='src/counts_processing.R'
