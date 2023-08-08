@@ -42,8 +42,9 @@ fi
 
 #### RUN IN CONTAINER ####################################################################################
 
-if [ -z "$@" ]; then
-    exit
+if [ $# -eq 0  ]; then
+    echo -e "No arguments provided--exiting"
+    exit 0
 elif [ "${1}" == 'R' ]; then
     echo 'INFO: starting interactive R session'
     singularity exec --cleanenv -H ${PWD} ${r_sif} R
