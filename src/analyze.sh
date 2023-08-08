@@ -19,15 +19,15 @@ else
     echo 'INFO: singularity command found'
 fi
 
-
+library://wellerca/protpipe/4.3.1:sha256.523df8eb1aa5c9eb30ac5cd70c3181431f90af6e12e497ee6d43854e5f578196
 
 #### R ANALYSIS ####################################################################################
 r_sif="src/R.sif"
-r_sif_sha256_desired='cfab1ee7f61e2af5dff7b832ce28768ce5df2ab949c482a5bd94a91383423bb5'
+r_sif_sha256_desired='523df8eb1aa5c9eb30ac5cd70c3181431f90af6e12e497ee6d43854e5f578196'
 if [ ! -f "${r_sif}" ]; then
     echo "INFO: pulling image from Singularity cloud"
-    singularity pull --arch amd64 library://wellerca/r/4.0:sha256.cfab1ee7f61e2af5dff7b832ce28768ce5df2ab949c482a5bd94a91383423bb5
-    mv 4.0_sha256.cfab1ee7f61e2af5dff7b832ce28768ce5df2ab949c482a5bd94a91383423bb5.sif "${r_sif}"
+    singularity pull --arch amd64 library://wellerca/protpipe/4.3.1:sha256.523df8eb1aa5c9eb30ac5cd70c3181431f90af6e12e497ee6d43854e5f578196
+    mv 4.0_sha256.523df8eb1aa5c9eb30ac5cd70c3181431f90af6e12e497ee6d43854e5f578196.sif "${r_sif}"
 else
     echo "INFO: ${r_sif} already exists, skipping download"
 fi
