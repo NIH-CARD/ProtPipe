@@ -858,7 +858,7 @@ plot_PPI_ven <- function(protein,t_test,lfc_threshold, fdr_threshold, output_dir
     DE=unique(up_genes$STRING_id),
     String_db=unique(neighbors))
   vd=euler(ven)
-  pdf(filename=paste0(output_dir, output_filename),height = 4,width = 5)
+  pdf(file=paste0(output_dir, output_filename),height = 4,width = 5)
   par(mar = c(2, 5, 5, 2))
   plot(vd, 
        factor_names = TRUE, labels=list(font=2, cex=1.2),
@@ -886,7 +886,7 @@ get_mhcflurry_input=function(hla_typing,dat.long,sample,MHC_dir){
                         'peptide' = unique(sample_pep$Peptide_Sequence))
         sample_allele_peptide = rbind(sample_allele_peptide,tmp)
     }
-    
+
     cat(paste0('   -> ', MHC_dir,sample, '_allele_peptide.csv', '\n'))
     write.csv(sample_allele_peptide,file = paste0(MHC_dir,sample, '_allele_peptide.csv'),row.names = F)
 }
