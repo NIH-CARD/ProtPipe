@@ -33,42 +33,38 @@ src/diann.sh --cfg config.txt
 ```
 
 # Post-analysis
-## Processing total protein intensity estimates
-The required documents are the csv or tsv file from the Spectronaut, design matrix csv file(example shown in folder example/design_matrix.csv).
+## Basic MS data analysis: `./protpipe.sh basic`
+For performing QC and running differential abundance or enrichment analysis for typical mass spec data. The required inputs are
+- protein intensity estimates from DIA-NN or Spectronaut
+- experimental design matrix csv file
+
 ```bash
-./protpipe.sh DA \
-  --pgfile EXAMPLES/DIFF_ABUNDANCE/iPSC.csv \
-  --design EXAMPLES/DIFF_ABUNDANCE/design_matrix_iPSC.csv \
-  --out EXAMPLES/DIFF_ABUNDANCE/
+./protpipe.sh basic \
+    --pgfile EXAMPLES/DIFF_ABUNDANCE/iPSC.csv \
+    --design EXAMPLES/DIFF_ABUNDANCE/design_matrix_iPSC.csv \
+    --out EXAMPLES/DIFF_ABUNDANCE/
 ```
 
-<details><summary>Samples for iPSCs neuron differentiation</summary>
 
+
+
+## Affinity Purification Mass Spec analysis: `./protpipe.sh AP`
+Similar to `basic` but for affinity purification mass spec. Requires the user to specify which protein was used for pulldown (`--ip`)
 ```bash
-# WITH differentiation neuron samples, Day0 as control
-Rscript src/counts_processing.R --pgfile iPSC_neuron/luke.csv --design iPSC_neuron/design_matrix_iPSC_neuron.csv --out iPSC_neuron/
+./protpipe.sh APMS \
+    --pgfile EXAMPLES/APMS/APMS.csv \
+    --design EXAMPLES/APMS/design_matrix_APMS.csv \
+    --ip UNC13A \
+    --out EXAMPLES/APMS/
 ```
 
-</details>
-
-## AP-MS data analysis
-The required documents are the csv or tsv file from the Spectronaut, design matrix csv file (example shown in folder example/design_matrix.csv) and the gene name for pulldown.
+## Immunopeptidome analysis: `./protpipe.sh immuno`
+Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing.
 ```bash
-Rscript src/APMS.R \
-  --pgfile APMS/apms.csv \
-  --design APMS/design_matrix_apms.csv \
-  --out APMS/ \
-  --ip UNC13A
-```
-
-## Immunopeptidome data analysis
-The required documents are the csv or tsv file from `FragPipe`, HLA_typing csv file(example shown in folder example/HLA_typing.csv).
-
-```bash
-Rscript src/immunopeptidome.R \
-  --pepfile EXAMPLES/IMMUNOPEPTIDOME/combined_peptide.tsv \
-  --out EXAMPLES/IMMUNOPEPTIDOME/ \
-  --hla peptidome/HLA_typing.csv
+./protpipe.sh immuno \
+    --pepfile EXAMPLES/IMMUNOPEPTIDOME/combined_peptide.tsv \
+    --out EXAMPLES/IMMUNOPEPTIDOME/ \
+    --hla EXAMPLES/IMMUNOPEPTIDOME/HLA_typing.csv
 ```
 
 

@@ -54,15 +54,15 @@ elif [ "${1}" == 'immuno' ]; then
 elif [ "${1}" == 'APMS' ]; then
     shift
     singularity exec --cleanenv -H ${PWD} ${r_sif} src/APMS.R $@
-elif [ "${1}" == 'DA' ]; then
+elif [ "${1}" == 'basic' ]; then
     shift
-    singularity exec --cleanenv -H ${PWD} ${r_sif} src/differential_abundance.R $@
+    singularity exec --cleanenv -H ${PWD} ${r_sif} src/basic_analysis.R $@
 else
     echo -e "Check first argument and try again."
     echo -e "Valid first arguments include one of the following:"
     echo -e "    R         (start containerized interactive R session)"
-    echo -e "    DA        (differential abundance analysis)"
-    echo -e "    APMS      (Affinity Purification Mass Spec analysis)"
+    echo -e "    basic     (differential abundance and enrichment analysis of standard MS data)"
+    echo -e "    APMS      (for Affinity Purification Mass Spec analysis)"
     echo -e "    immuno    (immunopeptidome MHC prediction)"
     echo -e "Provided Args: $@"
 fi
