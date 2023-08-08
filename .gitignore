@@ -1,1 +1,9 @@
 */.DS_Store
+
+# Ignore output of scripts
+Clustering/
+QC/
+MHC_Prediction/
+Enrichiment_Analysis/
+MHC_Prediction/
+PPI_Analysis/
