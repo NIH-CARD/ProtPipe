@@ -1,4 +1,5 @@
 */.DS_Store
+*.sif
 
 # Ignore output of scripts
 Clustering/
@@ -7,4 +8,4 @@ MHC_Prediction/
 Enrichiment_Analysis/
 MHC_Prediction/
 PPI_Analysis/
-*.sif
+Differential_Intensity/
