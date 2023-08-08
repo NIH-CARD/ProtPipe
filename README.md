@@ -18,7 +18,7 @@ We include a convenient wrapper script for running DIA-NN inside a pre-built sin
 
 This workflow requires that [`Singularity`](https://sylabs.io/singularity) be available, which runs natively on a Linux system. `Singularity` is containerization software that allows an entire pre-configured computing environment to be accessed--reducing installation headaches and improving reproducibility. 
 
-*We highly recommend making use a workstation or HPC with a native Linux installation.* Not only does this simplify the usage of `singularity`, it also would likely provide greater resources for DIA-NN's intensive computation.
+*We highly recommend using a workstation or HPC with a native Linux installation.* Not only does this simplify the usage of `singularity`, it also would likely provide greater resources for DIA-NN's intensive computation.
 
 To run on your personal/local non-Linux machine, Mac users need to first install a number of dependencies. Windows users would either need to use a virtual machine, or run things through the Windows Subsystem for Linux (WSL). Explaining the installation of `singularity` on these non-Linux systems is beyond the scope of this guide, so we defer to [the documentation here](https://docs.sylabs.io/guides/3.0/user-guide/installation.html).
 
@@ -36,7 +36,10 @@ src/diann.sh --cfg config.txt
 ## Processing total protein intensity estimates
 The required documents are the csv or tsv file from the Spectronaut, design matrix csv file(example shown in folder example/design_matrix.csv).
 ```bash
-src/analyze.sh --pgfile TEST/report.pg_matrix.tsv --design TEST/design.tsv --out TEST/
+./protpipe.sh DA \
+  --pgfile EXAMPLES/DIFF_ABUNDANCE/iPSC.csv \
+  --design EXAMPLES/DIFF_ABUNDANCE/design_matrix_iPSC.csv \
+  --out EXAMPLES/DIFF_ABUNDANCE/
 ```
 
 <details><summary>Samples for iPSCs neuron differentiation</summary>
