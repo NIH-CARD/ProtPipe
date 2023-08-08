@@ -48,7 +48,7 @@ For performing QC and running differential abundance or enrichment analysis for 
 
 
 
-## Affinity Purification Mass Spec analysis: `./protpipe.sh AP`
+## Affinity Purification Mass Spec analysis: `./protpipe.sh APMS`
 Similar to `basic` but for affinity purification mass spec. Requires the user to specify which protein was used for pulldown (`--ip`)
 ```bash
 ./protpipe.sh APMS \
