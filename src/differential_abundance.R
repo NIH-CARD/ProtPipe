@@ -502,8 +502,3 @@ tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
 }, 'ERROR: failed!')
 
 quit()
-
-## TODO:
-# Evaluate normalization with samples from very different batches?
-# Calculate differential intensities using DESeq2?
-# Function to compare q-values from spectronaut VS DIA-NN?
