@@ -44,7 +44,24 @@ fi
 
 if [ -z "$@" ]; then
     exit
+elif [ "${1}" == 'R' ]; then
+    echo 'INFO: starting interactive R session'
+    singularity exec --cleanenv -H ${PWD} ${r_sif} R
+elif [ "${1}" == 'immuno' ]; then
+    shift
+    singularity exec --cleanenv -H ${PWD} ${r_sif} src/immunopeptidome.R $@
+elif [ "${1}" == 'APMS' ]; then
+    shift
+    singularity exec --cleanenv -H ${PWD} ${r_sif} src/APMS.R $@
+elif [ "${1}" == 'DA' ]; then
+    shift
+    singularity exec --cleanenv -H ${PWD} ${r_sif} src/differential_abundance.R $@
 else
-    singularity exec --cleanenv -H ${PWD} ${r_sif} $@
+    echo -e "Check first argument and try again."
+    echo -e "Valid first arguments include one of the following:"
+    echo -e "    R         (start containerized interactive R session)"
+    echo -e "    DA        (differential abundance analysis)"
+    echo -e "    APMS      (Affinity Purification Mass Spec analysis)"
+    echo -e "    immuno    (immunopeptidome MHC prediction)"
+    echo -e "Provided Args: $@"
 fi
-
