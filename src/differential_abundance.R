@@ -246,18 +246,18 @@ if(! dir.exists(QC_dir)){
 }
 
 
-cluster_dir <- paste0(opt$outdir, '/clustering/')
+cluster_dir <- paste0(opt$outdir, '/Clustering/')
 if(! dir.exists(cluster_dir)){
     dir.create(cluster_dir, recursive = T)
 }
 
 
-DI_dir <- paste0(opt$outdir, '/differential_intensity/')
+DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
 if(! dir.exists(DI_dir)){
     dir.create(DI_dir, recursive = T)
 }
 
-EA_dir <- paste0(opt$outdir, '/Enrichiment_analysis/')
+EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
 if(! dir.exists(EA_dir)){
   dir.create(EA_dir, recursive = T)
 }
