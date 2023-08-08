@@ -48,17 +48,24 @@ Rscript src/counts_processing.R --pgfile iPSC_neuron/luke.csv --design iPSC_neur
 
 </details>
 
-## Processing AP-MS data analysis
-The required documents are the csv or tsv file from the Spectronaut, design matrix csv file(example shown in folder example/design_matrix.csv) and the gene name for the pulling down.
+## AP-MS data analysis
+The required documents are the csv or tsv file from the Spectronaut, design matrix csv file (example shown in folder example/design_matrix.csv) and the gene name for pulldown.
 ```bash
-Rscript src/APMS.R --pgfile APMS/apms.csv --design APMS/design_matrix_apms.csv --out APMS/ --ip UNC13A
+Rscript src/APMS.R \
+  --pgfile APMS/apms.csv \
+  --design APMS/design_matrix_apms.csv \
+  --out APMS/ \
+  --ip UNC13A
 ```
 
-## Processing Immunopeptidome data analysis
-The required documents are the csv or tsv file from the FragPip, HLA_typing csv file(example shown in folder example/HLA_typing.csv).
+## Immunopeptidome data analysis
+The required documents are the csv or tsv file from `FragPipe`, HLA_typing csv file(example shown in folder example/HLA_typing.csv).
 
 ```bash
-Rscript src/Peptidome.R --pepfile peptidome/combined_peptide.tsv  --out peptidome/ --hla peptidome/HLA_typing.csv
+Rscript src/immunopeptidome.R \
+  --pepfile EXAMPLES/IMMUNOPEPTIDOME/combined_peptide.tsv \
+  --out EXAMPLES/IMMUNOPEPTIDOME/ \
+  --hla peptidome/HLA_typing.csv
 ```
 
 
