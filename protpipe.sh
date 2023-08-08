@@ -42,4 +42,9 @@ fi
 
 #### RUN IN CONTAINER ####################################################################################
 
-singularity exec --cleanenv -H ${PWD} ${r_sif} Rscript $@
+if [ -z "$@" ]; then
+    exit
+else
+    singularity exec --cleanenv -H ${PWD} ${r_sif} $@
+fi
+
