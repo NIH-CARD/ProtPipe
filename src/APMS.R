@@ -272,12 +272,12 @@ if(! dir.exists(DI_dir)){
     dir.create(DI_dir, recursive = T)
 }
 
-EA_dir <- paste0(opt$outdir, '/Enrichiment_analysis/')
+EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
 if(! dir.exists(EA_dir)){
   dir.create(EA_dir, recursive = T)
 }
 
-PPI_dir <- paste0(opt$outdir, '/PPI_analysis/')
+PPI_dir <- paste0(opt$outdir, '/PPI_Analysis/')
 if(! dir.exists(PPI_dir)){
   dir.create(PPI_dir, recursive = T)
 }
