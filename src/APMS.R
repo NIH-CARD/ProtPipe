@@ -524,8 +524,6 @@ tryTo('INFO: Running PPI analysis',{
   PPI_score=get_ppi(opt$ip,t_test, opt$lfc_threshold, opt$fdr_threshold)
   ezwrite(PPI_score[order(PPI_score$ppi_score),], PPI_dir, paste0(opt$ip, '_ppi.tsv'))
   plot_PPI_rank(t_test, PPI_score, opt$lfc_threshold, opt$fdr_threshold,PPI_dir, paste0(opt$ip, '_PPI_rank.pdf'))
-  plot_PPI_ven(opt$ip,t_test,opt$lfc_threshold, opt$fdr_threshold, PPI_dir, paste0(opt$ip, '_PPI_ven.pdf'))
-  
 }, 'ERROR: failed!')
 
 
