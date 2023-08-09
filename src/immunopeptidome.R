@@ -381,11 +381,12 @@ tryTo('INFO: Plotting sample intensity correlations',{
     plot_correlation_heatmap(dat.correlations, QC_dir, 'sample_correlation.pdf')
 }, 'ERROR: failed!')
 
-
-tryTo('INFO: Importing experimental design',{
+if (!is.null(opt$design)) {
+  tryTo('INFO: Importing experimental design',{
     design <- fread(opt$design, header=TRUE)
     setnames(design, c('sample_name', 'condition', 'control'))
-}, 'ERROR: failed!')
+    }, 'ERROR: failed!')
+}
 
 if (!is.null(opt$exclude)) {
     tryTo(paste('INFO: excluding samples', opt$exclude),{
