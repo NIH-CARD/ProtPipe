@@ -244,13 +244,13 @@ scale_normalize_intensity <- function(DT.original) {
 
 plot_pg_intensities <- function(DT, output_dir, output_filename, plot_title) {
     n_samples <- length(unique(DT$Sample))
-    g <- ggplot(dat.long, aes(x=Sample, y=Intensity)) + 
+    g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
         geom_violin(trim=FALSE, fill="steelblue") +
         theme_classic() +
         labs(fill = "",x="",y='Log10 Protein Intensity') +
         theme(axis.text.x = element_text( angle=90)) +
         geom_boxplot(width=0.1) +
-        geom_hline(color='red', linetype='dashed',  aes(yintercept=quantile(dat.long$Intensity, 0.50)))
+        geom_hline(color='red', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity), 0.50)))
   
     if (n_samples>50){
         ggsave(plot = g,filename = paste0(output_dir, output_filename),width = n_samples/10,height =6)
@@ -262,13 +262,13 @@ plot_pg_intensities <- function(DT, output_dir, output_filename, plot_title) {
 
 plot_pep_intensities <- function(DT, output_dir, output_filename, plot_title) {
   n_samples <- length(unique(DT$Sample))
-  g <- ggplot(dat.long, aes(x=Sample, y=Intensity)) + 
+  g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
     geom_violin(trim=FALSE, fill="steelblue")+
     theme_classic()+
     labs(fill = "",x="",y='Log10 Peptide Intensity')+
     theme(axis.text.x = element_text( angle=90))+
     geom_boxplot(width=0.1)+
-    geom_hline( color='red', linetype='dashed',  aes(yintercept=quantile(dat.long$Intensity, 0.50)))
+    geom_hline( color='red', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity, 0.50))))
   
     if (n_samples>50){
         ggsave(plot = g,filename = paste0(output_dir, output_filename),width = n_samples/10,height =6)
