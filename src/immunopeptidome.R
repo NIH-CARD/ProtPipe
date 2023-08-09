@@ -359,19 +359,6 @@ tryTo('INFO: Cabulating peptide counts',{
 }, 'ERROR: failed!')
 
 
-# pgthresholds represents the decay in number of unique peptide groups per sample as
-# the minimum Intensity threshold is incremented. Visually represented as a line plot.
-tryTo('INFO: Calculating peptide group counts by minimum intensity thresholds',{
-    pgthresholds <- foreach(threshold=0:(1+max(dat.long$Intensity)), .combine='rbind') %do% {
-        dat.tmp <- dat.long[, list('N'=sum(Intensity > threshold)), by=Sample]
-        dat.tmp[, 'Threshold' := threshold]
-        return(dat.tmp)
-    }
-    ezwrite(pgthresholds, QC_dir, 'peptide_group_thresholds.tsv')
-    plot_pg_thresholds(pgthresholds, QC_dir, 'peptide_group_thresholds.pdf')
-}, 'ERROR: failed!')
-
-
 tryTo('INFO: Plotting sample intensity correlations',{
     dat.correlations <- get_spearman(dat)
     ezwrite(dat.correlations, QC_dir, 'sample_correlation.tsv')
