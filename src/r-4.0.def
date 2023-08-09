@@ -56,14 +56,23 @@ From: ubuntu:focal
     R --no-echo -e "install.packages('reshape2', repos='http://cran.us.r-project.org')"
     R --no-echo -e "install.packages('magick', repos='http://cran.us.r-project.org')"
     R --no-echo -e "install.packages('ggbeeswarm', repos='http://cran.us.r-project.org')"
-    R --no-echo -e "install.packages('ggrepel', repos='http://cran.us.r-project.org')"
     R --no-echo -e "install.packages('ggdendro', repos='http://cran.us.r-project.org')"
-
+    R --no-echo -e "install.packages('ecodist', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('eulerr', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('BiocManager')"
+    R --no-echo -e "BiocManager::install('org.Hs.eg.db')"
+    R --no-echo -e "BiocManager::install('clusterProfiler')"
+    R --no-echo -e "BiocManager::install('STRINGdb')"
     
-    # R --no-echo -e "install.packages('BiocManager', repos='http://cran.us.r-project.org')"
-    # R --no-echo -e "BiocManager::install('DESeq2')"
-    # R --no-echo -e "BiocManager::install('apeglm')"
+    # Install python3.8 and pip3
+    apt-get clean
+    apt-get update
+    apt-get install -y python3.8 python3-pip
 
+    # Install mhcflurry
+    pip3 install mhcflurry
+
+    # end noninteractive install
     unset DEBIAN_FRONTEND
 
 %runscript

@@ -10,7 +10,7 @@ We include a convenient wrapper script for running DIA-NN inside a pre-built sin
 # Quick-start
 
 1. Ensure `singularity` is installed and accessible on your system. Many HPCs (including NIH Biowulf) come with this pre-installed as a module. If your HPC has singularity installed, it will be automatically detected and loaded when necessary.
-2. Clone this repository, i.e. execute `git clone https://github.com/cory-weller/ProtPipe.git`
+2. Clone this repository, i.e. execute `git clone https://github.com/lzy604/Protpipe.git`
 3. If you are predicting protein abundances from raw mass spec output, look over and edit any custom `DIA-NN` parameters inside [`config.txt`](config.txt). You can either edit `config.txt` directly (and it will be used by default), or make a copy and save it to a different file name, then reference it with `--cfg newfilename.txt` when running the wrapper script.
 
 
@@ -18,7 +18,7 @@ We include a convenient wrapper script for running DIA-NN inside a pre-built sin
 
 This workflow requires that [`Singularity`](https://sylabs.io/singularity) be available, which runs natively on a Linux system. `Singularity` is containerization software that allows an entire pre-configured computing environment to be accessed--reducing installation headaches and improving reproducibility. 
 
-*We highly recommend making use a workstation or HPC with a native Linux installation.* Not only does this simplify the usage of `singularity`, it also would likely provide greater resources for DIA-NN's intensive computation.
+*We highly recommend using a workstation or HPC with a native Linux installation.* Not only does this simplify the usage of `singularity`, it also would likely provide greater resources for DIA-NN's intensive computation.
 
 To run on your personal/local non-Linux machine, Mac users need to first install a number of dependencies. Windows users would either need to use a virtual machine, or run things through the Windows Subsystem for Linux (WSL). Explaining the installation of `singularity` on these non-Linux systems is beyond the scope of this guide, so we defer to [the documentation here](https://docs.sylabs.io/guides/3.0/user-guide/installation.html).
 
@@ -33,32 +33,77 @@ src/diann.sh --cfg config.txt
 ```
 
 # Post-analysis
-## Processing total protein intensity estimates
-The required documents are the csv or tsv file from the Spectronaut, design matrix csv file(example shown in folder example/design_matrix.csv).
+
+## Running containerized interactive `R` session
+You can start an interactive R session within the container as follows:
+
 ```bash
-src/analyze.sh --pgfile TEST/report.pg_matrix.tsv --design TEST/design.tsv --out TEST/
+./protpipe.sh R
 ```
 
-<details><summary>Samples for iPSCs neuron differentiation</summary>
-
+The above is shorthand for executing the followiing:
 ```bash
-# WITH differentiation neuron samples, Day0 as control
-Rscript src/counts_processing.R --pgfile iPSC_neuron/luke.csv --design iPSC_neuron/design_matrix_iPSC_neuron.csv --out iPSC_neuron/
+singularity exec -B ${PWD} R
 ```
 
-</details>
+where `singularity exec R` starts the `R` session, while `-B ${PWD}` binds the
+current directory within the container. Without binding, the current directory's
+files would not be visible inside the container.
 
-## Processing AP-MS data analysis
-The required documents are the csv or tsv file from the Spectronaut, design matrix csv file(example shown in folder example/design_matrix.csv) and the gene name for the pulling down.
+## Basic MS data analysis: `./protpipe.sh basic`
+
+> Note: Works, but runs into issues with `bitr` failing to map some
+> fraction of the input gene IDs
+> ```
+> 1: In bitr(DT$Genes, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = "org.Hs.> eg.db",  :
+>   3.17% of input gene IDs are fail to map...
+> ```
+
+For performing QC and running differential abundance or enrichment analysis for typical mass spec data. The required inputs are
+- protein intensity estimates from DIA-NN or Spectronaut
+- experimental design matrix csv file
+
 ```bash
-Rscript src/APMS.R --pgfile APMS/apms.csv --design APMS/design_matrix_apms.csv --out APMS/ --ip UNC13A
+./protpipe.sh basic \
+    --pgfile EXAMPLES/DIFF_ABUNDANCE/iPSC.csv \
+    --design EXAMPLES/DIFF_ABUNDANCE/design_matrix_iPSC.csv \
+    --out EXAMPLES/DIFF_ABUNDANCE/
 ```
 
-## Processing Immunopeptidome data analysis
-The required documents are the csv or tsv file from the FragPip, HLA_typing csv file(example shown in folder example/HLA_typing.csv).
 
+## Affinity Purification Mass Spec analysis: `./protpipe.sh APMS`
+
+> Note: Runs into errors 
+> ```
+> WARNING: Only 'full' and 'physical' network types are valid. Setting to the > network type to 'full' STRING network.
+> Warning:  we couldn't map to STRING 1% of your identifiers[1] "PPI"
+> Warning:  we couldn't map to STRING 1% of your identifiers[1] "PPI Ven"
+> ```
+> Then the resulting file `PPI_ven.pdf` is empty
+
+
+Similar to `basic` but for affinity purification mass spec. Requires the user to specify which protein was used for pulldown (`--ip`)
 ```bash
-Rscript src/Peptidome.R --pepfile peptidome/combined_peptide.tsv  --out peptidome/ --hla peptidome/HLA_typing.csv
+./protpipe.sh APMS \
+    --pgfile EXAMPLES/APMS/APMS.csv \
+    --design EXAMPLES/APMS/design_matrix_APMS.csv \
+    --ip UNC13A \
+    --out EXAMPLES/APMS/
+```
+
+## Immunopeptidome analysis: `./protpipe.sh immuno`
+
+> Note: a function seems to be missing.
+> ```
+> Error in plot_pep_counts(pep_counts, QC_dir, "peptide_nonzero_counts.pdf"): could not find function "plot_pep_counts"
+> ```
+
+Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing.
+```bash
+./protpipe.sh immuno \
+    --pepfile EXAMPLES/IMMUNOPEPTIDOME/combined_peptide.tsv \
+    --out EXAMPLES/IMMUNOPEPTIDOME/ \
+    --hla EXAMPLES/IMMUNOPEPTIDOME/HLA_typing.csv
 ```
 
 

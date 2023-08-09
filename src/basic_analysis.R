@@ -28,15 +28,6 @@ option_list = list(
         )
     ),
     make_option(
-      "--ip",
-      default=NULL,
-      help=paste(
-        'Protein name of the IP',
-        'Required.',
-        sep=optparse_indent
-      )
-    ),
-    make_option(
         "--labelgene",
         dest="labelgene",
         default=NULL, 
@@ -221,11 +212,6 @@ if (is.null(opt$design)) {
     badargs <- TRUE
 }
 
-if (is.null(opt$ip)) {
-  cat("ERROR: --ip <file> must be provided\n")
-  badargs <- TRUE
-}
-
 if (badargs == TRUE) {
     quit(status=1)
 }
@@ -233,8 +219,7 @@ if (badargs == TRUE) {
 
 #### PACKAGES ######################################################################################
 package_list = c('ggplot2', 'data.table', 'corrplot', 'umap', 'magick', 'ggdendro', 'ecodist',
-                 'ggbeeswarm', 'ggrepel', 'ggthemes', 'foreach','reshape2','org.Hs.eg.db',
-                 'clusterProfiler','STRINGdb','eulerr')
+                 'ggbeeswarm', 'ggrepel', 'ggthemes', 'foreach','reshape2','org.Hs.eg.db','clusterProfiler')
 cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 
@@ -277,11 +262,6 @@ if(! dir.exists(EA_dir)){
   dir.create(EA_dir, recursive = T)
 }
 
-PPI_dir <- paste0(opt$outdir, '/PPI_Analysis/')
-if(! dir.exists(PPI_dir)){
-  dir.create(PPI_dir, recursive = T)
-}
-
 #### IMPORT AND FORMAT DATA#########################################################################
 
 tryTo(paste0('INFO: Reading input file ', opt$pgfile),{
@@ -290,6 +270,8 @@ tryTo(paste0('INFO: Reading input file ', opt$pgfile),{
 
 tryTo(paste0('INFO: Massaging data from ', opt$pgfile, ' into a common style format for processing'), {
     dat <- standardize_format(dat)
+    
+    
 }, 'ERROR: failed! Check for missing/corrupt headers?')
 
 tryTo(paste0('INFO: Trimming extraneous column name info'), {
@@ -504,13 +486,14 @@ if ((ncol(dat)-3)>opt$neighbors) {
 
 tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
     for (treatment in conditions) {
+      print(paste0(treatment, ' vs ', control, ' DE analysis'))
       treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
         if (length(treatment_sample_names)==0) {next}
         control <- unique(design[condition == treatment, control])
         control_sample_names <- colnames(dat)[colnames(dat) %like% control]
         if (length(control_sample_names)==0) {next}
         if(treatment != control) {
-            t_test <- do_t_test_APMS(dat, treatment_sample_names, control_sample_names)
+            t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
             ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
             plot_volcano(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
             enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
@@ -518,20 +501,4 @@ tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
     }
 }, 'ERROR: failed!')
 
-
-#### PPI ########################################################################
-tryTo('INFO: Running PPI analysis',{
-  PPI_score=get_ppi(opt$ip,t_test, opt$lfc_threshold, opt$fdr_threshold)
-  ezwrite(PPI_score[order(PPI_score$ppi_score),], PPI_dir, paste0(opt$ip, '_ppi.tsv'))
-  plot_PPI_rank(t_test, PPI_score, opt$lfc_threshold, opt$fdr_threshold,PPI_dir, paste0(opt$ip, '_PPI_rank.pdf'))
-  plot_PPI_ven(opt$ip,t_test,opt$lfc_threshold, opt$fdr_threshold, PPI_dir, paste0(opt$ip, '_PPI_ven.pdf'))
-  
-}, 'ERROR: failed!')
-
-
 quit()
-
-## TODO:
-# Evaluate normalization with samples from very different batches?
-# Calculate differential intensities using DESeq2?
-# Function to compare q-values from spectronaut VS DIA-NN?
