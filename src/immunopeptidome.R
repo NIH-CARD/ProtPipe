@@ -64,8 +64,8 @@ option_list = list(
         default=3,
         type='numeric',
         help=paste(
-            'Filter out samples with protein group counts > N standard deviations from the mean.',
-            'Increase to higher values for greater tolerance of variance in protein group counts.',
+            'Filter out samples with peptide counts > N standard deviations from the mean.',
+            'Increase to higher values for greater tolerance of variance in peptide group counts.',
             'Default: 3',
             sep=optparse_indent
         )
@@ -95,7 +95,7 @@ option_list = list(
         type='numeric',
         help=paste(
             'Minimum LINEAR fold change [NOT log, as log base can be modified] for labeling',
-            'protein groups in differential abundance analysis. Default: 2 (equivalent to',
+            'peptide groups in differential abundance analysis. Default: 2 (equivalent to',
             'log2 fold-change threshold of 1)',
             sep=optparse_indent
         )
@@ -161,9 +161,9 @@ option_list = list(
         sep=optparse_indent
       )
     ),
+    
     make_option(
       "--hla",
-      dest = 'HLA_typing',
       default=NULL,
       help=paste(
         'The HLA typing information.',
@@ -202,6 +202,7 @@ if (is.null(opt$pepfile)) {
 }
 
 
+
 if (badargs == TRUE) {
     quit(status=1)
 }
@@ -215,7 +216,7 @@ cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 
 defaultW <- getOption("warn"); options(warn = -1)   # Temporarily disable warnings for quiet loading
-if(all((lapply(package_list, require, character.only=TRUE)))) {
+if(all(suppressWarnings(suppressMessages((lapply(package_list, require, character.only=TRUE)))))) {
     cat("INFO: All packages successfully loaded\n")
 } else {
     cat("ERROR: One or more packages not available. Are you running this within the container?\n")
@@ -308,11 +309,7 @@ tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
 ## Plotting intensity distribution
 
 tryTo('INFO: Plotting intensity distribution',{
-  tryTo(paste0('INFO: Applying Log[base', opt$log_base, '](value+1) transformation to intensities'),{
-    dat.long.log <- dat.long[, Intensity := log((Intensity + 1), base=opt$log_base)]
-  },'ERROR: failed! Was your log base numeric and > 1?')
-  
-  plot_pep_intensities(dat.long.log, QC_dir, 'intensities.pdf', plot_title='Normalized intensities')
+  plot_pep_intensities(dat.long, QC_dir, 'intensities.pdf', plot_title='Normalized intensities')
       # plot_density(dat.long, QC_dir, 'intensity_density.pdf')
     # plot_density(dat.long.normalized, QC_dir, 'intensity_density_normalized.pdf')
 }, 'ERROR: failed!')
@@ -354,24 +351,24 @@ if (opt$normalize == 'none') {
 # Peptide_counts represents the distribution of peptide with Intensity > 0
 # Visually, it is represented as a bar plot with x=sample, y=N, ordered by descending N
 # Get counts of [N=unique gene groups with `Intensity` > 0]
-tryTo('INFO: Tabulating peptide counts',{
+tryTo('INFO: Cabulating peptide counts',{
   pep_counts <- dat.long[, .N, by=Sample]
   # Order samples by ascending counts
-  ezwrite(pep_counts, QC_dir, 'protein_group_nonzero_counts.tsv')
+  ezwrite(pep_counts, QC_dir, 'peptide_group_nonzero_counts.tsv')
   plot_pep_counts(pep_counts, QC_dir, 'peptide_nonzero_counts.pdf')
 }, 'ERROR: failed!')
 
 
-# pgthresholds represents the decay in number of unique protein groups per sample as
+# pgthresholds represents the decay in number of unique peptide groups per sample as
 # the minimum Intensity threshold is incremented. Visually represented as a line plot.
-tryTo('INFO: Calculating protein group counts by minimum intensity thresholds',{
+tryTo('INFO: Calculating peptide group counts by minimum intensity thresholds',{
     pgthresholds <- foreach(threshold=0:(1+max(dat.long$Intensity)), .combine='rbind') %do% {
         dat.tmp <- dat.long[, list('N'=sum(Intensity > threshold)), by=Sample]
         dat.tmp[, 'Threshold' := threshold]
         return(dat.tmp)
     }
-    ezwrite(pgthresholds, QC_dir, 'protein_group_thresholds.tsv')
-    plot_pg_thresholds(pgthresholds, QC_dir, 'protein_group_thresholds.pdf')
+    ezwrite(pgthresholds, QC_dir, 'peptide_group_thresholds.tsv')
+    plot_pg_thresholds(pgthresholds, QC_dir, 'peptide_group_thresholds.pdf')
 }, 'ERROR: failed!')
 
 
@@ -469,7 +466,10 @@ if (!is.null(opt$design)) {
 #### MHC BINDING PREDICTION########################################################################
 if (!is.null(opt$hla)) {
   tryTo('INFO:Peptide/MHC I binding affinity prediction',{
-    hla_typing=fread(opt$hla)
+    tryTo('INFO: Importing HLA_typing file',{
+      hla_typing=fread(opt$hla, header=TRUE)
+    }, 'ERROR: failed!')
+    print(hla_typing[])
     
     for (sample in unique(hla_typing$sample_name)) {
       #Generate the MHCflurry input file
