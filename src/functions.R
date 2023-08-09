@@ -129,6 +129,31 @@ plot_pg_counts <- function(DT, output_dir, output_filename) {
     } 
   }
 
+plot_pep_counts <- function(DT, output_dir, output_filename) {
+  n_samples <- nrow(DT)
+  if (n_samples > 20) {
+    p=ggplot(DT, aes(x=Sample, y=N)) +
+      geom_bar(stat="identity", fill="steelblue")+
+      theme_classic()+
+      labs(fill = "",x="Sample",y='Number of Peptides')+
+      scale_x_discrete(guide = guide_axis(angle = 90))
+  }
+  if (n_samples < 20) {
+    p=ggplot(DT, aes(x=Sample, y=N)) +
+      geom_bar(stat="identity", fill="steelblue")+
+      theme_classic()+
+      labs(fill = "",x="Sample",y='Number of Peptides')+
+      scale_x_discrete(guide = guide_axis(angle = 90))+ 
+      geom_text(aes(label=N, y=N + (0.05*max(pep_counts$N))))
+  }
+  
+  if (n_samples>50){
+    ggsave(plot = p,filename = paste0(output_dir, output_filename),width = n_samples/10,height = 6)
+  }else {
+    ggsave(plot = p,filename = paste0(output_dir, output_filename),width = 8,height = 6)
+  } 
+}
+
 plot_pg_thresholds <- function(DT, output_dir, output_filename) {
     # G
     g <- ggplot(DT, aes(x=Threshold, y=N, color=Sample)) +
