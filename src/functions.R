@@ -245,7 +245,7 @@ scale_normalize_intensity <- function(DT.original) {
 plot_pg_intensities <- function(DT, output_dir, output_filename, plot_title) {
     n_samples <- length(unique(DT$Sample))
     g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
-        geom_violin(trim=FALSE, fill="steelblue") +
+        geom_boxplot(outlier.shape = NA, fill="steelblue") +
         theme_classic() +
         labs(fill = "",x="",y='Log10 Protein Intensity') +
         theme(axis.text.x = element_text( angle=90)) +
