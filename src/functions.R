@@ -268,7 +268,7 @@ plot_pep_intensities <- function(DT, output_dir, output_filename, plot_title) {
     labs(fill = "",x="",y='Log10 Peptide Intensity')+
     theme(axis.text.x = element_text( angle=90))+
     geom_boxplot(width=0.1)+
-    geom_hline( color='red', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity, 0.50))))
+    geom_hline( color='red', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity), 0.50)))
   
     if (n_samples>50){
         ggsave(plot = g,filename = paste0(output_dir, output_filename),width = n_samples/10,height =6)
@@ -906,7 +906,7 @@ get_mhcflurry_input=function(hla_typing,dat.long,sample,MHC_dir){
     sample_pep=sample_pep[sample_pep$lengh<16,]
     sample_allele_peptide=data.frame()
 
-    for (allele in allele_sample$allele) {
+    for (allele in sample_allele$allele) {
         tmp <- data.frame('allele' = allele,
                         'peptide' = unique(sample_pep$Peptide_Sequence))
         sample_allele_peptide = rbind(sample_allele_peptide,tmp)

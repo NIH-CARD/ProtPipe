@@ -332,7 +332,7 @@ tryTo('INFO: Plotting intensity distribution',{
   tryTo(paste0('INFO: Applying Log[base', opt$log_base, '](value+1) transformation to intensities'),{
     dat.long.log <- dat.long[, Intensity := log((Intensity + 1), base=opt$log_base)]
   },'ERROR: failed! Was your log base numeric and > 1?')
-    plot_pg_intensities(dat.long.log, QC_dir, 'intensities.pdf', plot_title='Un-normalized intensities')
+    plot_pg_intensities(dat.long, QC_dir, 'intensities.pdf', plot_title='Un-normalized intensities')
     # plot_density(dat.long, QC_dir, 'intensity_density.pdf')
     # plot_density(dat.long.normalized, QC_dir, 'intensity_density_normalized.pdf')
 }, 'ERROR: failed!')
