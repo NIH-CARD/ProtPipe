@@ -383,25 +383,11 @@ tryTo('INFO: Tabulating protein group counts',{
 }, 'ERROR: failed!')
 
 
-# pgthresholds represents the decay in number of unique protein groups per sample as
-# the minimum Intensity threshold is incremented. Visually represented as a line plot.
-tryTo('INFO: Calculating protein group counts by minimum intensity thresholds',{
-    pgthresholds <- foreach(threshold=0:(1+max(dat.long$Intensity)), .combine='rbind') %do% {
-        dat.tmp <- dat.long[, list('N'=sum(Intensity > threshold)), by=Sample]
-        dat.tmp[, 'Threshold' := threshold]
-        return(dat.tmp)
-    }
-    ezwrite(pgthresholds, QC_dir, 'protein_group_thresholds.tsv')
-    plot_pg_thresholds(pgthresholds, QC_dir, 'protein_group_thresholds.pdf')
-}, 'ERROR: failed!')
-
-
 tryTo('INFO: Plotting sample intensity correlations',{
     dat.correlations <- get_spearman(dat)
     ezwrite(dat.correlations, QC_dir, 'sample_correlation.tsv')
     plot_correlation_heatmap(dat.correlations, QC_dir, 'sample_correlation.pdf')
 }, 'ERROR: failed!')
-
 
 tryTo('INFO: Importing experimental design',{
     design <- fread(opt$design, header=TRUE)
