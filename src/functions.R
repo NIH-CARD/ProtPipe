@@ -883,16 +883,16 @@ plot_PPI_ven <- function(protein,t_test,lfc_threshold, fdr_threshold, output_dir
     DE=unique(up_genes$STRING_id),
     String_db=unique(neighbors))
   vd=euler(ven)
-  pdf(file=paste0(output_dir, output_filename),height = 4,width = 5)
+  pdf(file=paste0(output_dir, output_filename))
   par(mar = c(2, 5, 5, 2))
-  plot(vd, 
+  print(plot(vd, 
        factor_names = TRUE, labels=list(font=2, cex=1.2),
        counts = TRUE,
        key=TRUE,
        fills = list(fill = c("#fbb4ae", "#b3cde3", "#ccebc5")),
        cex=1, 
        edges = FALSE,
-       quantities = list(type = c("counts")))
+       quantities = list(type = c("counts"))))
   dev.off()
   
 }
