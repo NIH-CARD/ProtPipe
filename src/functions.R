@@ -920,7 +920,8 @@ get_mhcflurry_input=function(hla_typing,dat.long,sample,MHC_dir){
 
 runing_mhcflurry <- function(sample) {
   print(paste0("Runing MHCflurry for ",sample))
-  command <- paste0('source activate mhcflurry-env', '\n',"mhcflurry-predict ",MHC_dir,sample, '_allele_peptide.csv'," --out " ,MHC_dir,sample,"_mhc_predictions.csv")
+  system('mhcflurry-downloads fetch models_class1_presentation')
+  command <- paste0("mhcflurry-predict ",MHC_dir,sample, '_allele_peptide.csv'," --out " ,MHC_dir,sample,"_mhc_predictions.csv")
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_predictions.csv", '\n'))
   system(command)
   

@@ -71,6 +71,7 @@ From: ubuntu:focal
 
     # Install mhcflurry
     pip3 install mhcflurry
+    pip3 install tensorflow
 
     # end noninteractive install
     unset DEBIAN_FRONTEND

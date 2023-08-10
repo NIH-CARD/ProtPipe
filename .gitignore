@@ -9,3 +9,5 @@ Enrichiment_Analysis/
 MHC_Prediction/
 PPI_Analysis/
 Differential_Intensity/
+.local/
+.keras/

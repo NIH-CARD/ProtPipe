@@ -52,13 +52,6 @@ files would not be visible inside the container.
 
 ## Basic MS data analysis: `./protpipe.sh basic`
 
-> Note: Works, but runs into issues with `bitr` failing to map some
-> fraction of the input gene IDs
-> ```
-> 1: In bitr(DT$Genes, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = "org.Hs.> eg.db",  :
->   3.17% of input gene IDs are fail to map...
-> ```
-
 For performing QC and running differential abundance or enrichment analysis for typical mass spec data. The required inputs are
 - protein intensity estimates from DIA-NN or Spectronaut
 - experimental design matrix csv file
@@ -73,15 +66,6 @@ For performing QC and running differential abundance or enrichment analysis for 
 
 ## Affinity Purification Mass Spec analysis: `./protpipe.sh APMS`
 
-> Note: Runs into errors 
-> ```
-> WARNING: Only 'full' and 'physical' network types are valid. Setting to the > network type to 'full' STRING network.
-> Warning:  we couldn't map to STRING 1% of your identifiers[1] "PPI"
-> Warning:  we couldn't map to STRING 1% of your identifiers[1] "PPI Ven"
-> ```
-> Then the resulting file `PPI_ven.pdf` is empty
-
-
 Similar to `basic` but for affinity purification mass spec. Requires the user to specify which protein was used for pulldown (`--ip`)
 ```bash
 ./protpipe.sh APMS \
@@ -92,11 +76,6 @@ Similar to `basic` but for affinity purification mass spec. Requires the user to
 ```
 
 ## Immunopeptidome analysis: `./protpipe.sh immuno`
-
-> Note: a function seems to be missing.
-> ```
-> Error in plot_pep_counts(pep_counts, QC_dir, "peptide_nonzero_counts.pdf"): could not find function "plot_pep_counts"
-> ```
 
 Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing.
 ```bash

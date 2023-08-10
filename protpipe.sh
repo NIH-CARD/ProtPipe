@@ -22,11 +22,11 @@ fi
 
 #### R ANALYSIS ####################################################################################
 r_sif="src/R.sif"
-r_sif_sha256_desired='523df8eb1aa5c9eb30ac5cd70c3181431f90af6e12e497ee6d43854e5f578196'
+r_sif_sha256_desired='449c74e3c0a5a82a65fa70e44f409c31c6fc215186201ad2650cc2425694e26b'
 if [ ! -f "${r_sif}" ]; then
     echo "INFO: pulling image from Singularity cloud"
-    singularity pull --arch amd64 library://wellerca/protpipe/4.3.1:sha256.523df8eb1aa5c9eb30ac5cd70c3181431f90af6e12e497ee6d43854e5f578196
-    mv 4.3.1_sha256.523df8eb1aa5c9eb30ac5cd70c3181431f90af6e12e497ee6d43854e5f578196.sif "${r_sif}"
+    singularity pull --arch amd64 library://wellerca/protpipe/4.3.1:sha256.449c74e3c0a5a82a65fa70e44f409c31c6fc215186201ad2650cc2425694e26b
+    mv 4.3.1_sha256.449c74e3c0a5a82a65fa70e44f409c31c6fc215186201ad2650cc2425694e26b.sif "${r_sif}"
 else
     echo "INFO: ${r_sif} already exists, skipping download"
 fi
