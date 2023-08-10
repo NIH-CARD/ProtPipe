@@ -637,19 +637,20 @@ plot_volcano <- function(DT.original, treatment, control, log_base, lfc_threshol
         DT[Genes %in% labelgene, labeltext := Genes]
     }
     g <- ggplot(DT, aes(x=log2FC, y=-log10(p.adj))) +
-    geom_point(aes(color = Group)) +
-    scale_color_manual(values = c("blue", "grey","red"))  +
-    theme_bw(base_size = 12) + theme(legend.position = "bottom") +
-    geom_label_repel(
+      geom_point(aes(color = Group)) +
+      scale_color_manual(breaks = c("DOWN", "Others", "UP"), 
+                        values=c("#67a9cf", "#969696","#ef8a62"))+
+      theme_bw(base_size = 12) + theme(legend.position = "bottom") +
+      geom_label_repel(
         data = subset(DT),
         aes(label = labeltext),
         size = 5,
         box.padding = unit(0.35, "lines"),
         point.padding = unit(0.3, "lines"))+
-    geom_hline(yintercept=-log10(fdr_threshold), linetype="dashed")+ 
-    geom_vline(xintercept=lfc_threshold, linetype="dashed")+ 
-    geom_vline(xintercept=-lfc_threshold, linetype="dashed")+
-    theme_classic()
+      geom_hline(yintercept=-log10(fdr_threshold), linetype="dashed")+ 
+      geom_vline(xintercept=lfc_threshold, linetype="dashed")+ 
+      geom_vline(xintercept=-lfc_threshold, linetype="dashed")+
+      theme_classic()
 
     output_filename <- paste0(treatment, '_vs_', control, '.pdf')
     cat(paste0('   -> ', out_dir, output_filename, '\n'))
