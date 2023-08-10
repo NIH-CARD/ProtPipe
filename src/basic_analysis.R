@@ -311,10 +311,7 @@ tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
 ## Plotting intensity distribution
 
 tryTo('INFO: Plotting intensity distribution',{
-  tryTo(paste0('INFO: Applying Log[base', opt$log_base, '](value+1) transformation to intensities'),{
-    dat.long.log <- dat.long[, Intensity := log((Intensity + 1), base=opt$log_base)]
-  },'ERROR: failed! Was your log base numeric and > 1?')
-    plot_pg_intensities(dat.long.log, QC_dir, 'intensities.pdf', plot_title='Un-normalized intensities')
+    plot_pg_intensities(dat.long, QC_dir, 'intensities.pdf', plot_title='Un-normalized intensities')
     # plot_density(dat.long, QC_dir, 'intensity_density.pdf')
     # plot_density(dat.long.normalized, QC_dir, 'intensity_density_normalized.pdf')
 }, 'ERROR: failed!')
@@ -365,19 +362,6 @@ tryTo('INFO: Tabulating protein group counts',{
     # Order samples by ascending counts
     ezwrite(pgcounts, QC_dir, 'protein_group_nonzero_counts.tsv')
     plot_pg_counts(pgcounts, QC_dir, 'protein_group_nonzero_counts.pdf')
-}, 'ERROR: failed!')
-
-
-# pgthresholds represents the decay in number of unique protein groups per sample as
-# the minimum Intensity threshold is incremented. Visually represented as a line plot.
-tryTo('INFO: Calculating protein group counts by minimum intensity thresholds',{
-    pgthresholds <- foreach(threshold=0:(1+max(dat.long$Intensity)), .combine='rbind') %do% {
-        dat.tmp <- dat.long[, list('N'=sum(Intensity > threshold)), by=Sample]
-        dat.tmp[, 'Threshold' := threshold]
-        return(dat.tmp)
-    }
-    ezwrite(pgthresholds, QC_dir, 'protein_group_thresholds.tsv')
-    plot_pg_thresholds(pgthresholds, QC_dir, 'protein_group_thresholds.pdf')
 }, 'ERROR: failed!')
 
 
