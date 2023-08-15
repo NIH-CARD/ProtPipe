@@ -88,7 +88,7 @@ standardize_format <- function(DT.original) {
 
 trim_colnames <- function(DT) {
     colnames_out <- gsub(pattern="\\[.*\\] ", replacement='', x=colnames(DT))   # trim leading [N] 
-    colnames_out <- gsub(pattern="\\..*\\.PG\\.Quantity", replacement='', x=colnames_out)   # remove suffix
+    colnames_out <- gsub(pattern="\\..*\\.PG\\.Quantity|\\.PG\\.Quantity", replacement='', x=colnames_out)   # remove suffix
     return(colnames_out)
 }
 
