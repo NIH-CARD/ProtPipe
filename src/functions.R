@@ -108,14 +108,14 @@ plot_pg_counts <- function(DT, output_dir, output_filename) {
   n_samples <- nrow(DT)
   if (n_samples > 20) {
     p=ggplot(DT, aes(x=Sample, y=N)) +
-      geom_bar(stat="identity", fill="steelblue")+
+      geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
       labs(fill = "",x="Sample",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))
   }
   if (n_samples < 20) {
     p=ggplot(DT, aes(x=Sample, y=N)) +
-      geom_bar(stat="identity", fill="steelblue")+
+      geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
       labs(fill = "",x="Sample",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))+ 
@@ -133,14 +133,14 @@ plot_pep_counts <- function(DT, output_dir, output_filename) {
   n_samples <- nrow(DT)
   if (n_samples > 20) {
     p=ggplot(DT, aes(x=Sample, y=N)) +
-      geom_bar(stat="identity", fill="steelblue")+
+      geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
       labs(fill = "",x="Sample",y='Number of Peptides')+
       scale_x_discrete(guide = guide_axis(angle = 90))
   }
   if (n_samples < 20) {
     p=ggplot(DT, aes(x=Sample, y=N)) +
-      geom_bar(stat="identity", fill="steelblue")+
+      geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
       labs(fill = "",x="Sample",y='Number of Peptides')+
       scale_x_discrete(guide = guide_axis(angle = 90))+ 
@@ -194,7 +194,7 @@ plot_density <- function(DT.original, output_dir, output_filename) {
         geom_density(fill='gray80') +
         theme_few() +
         facet_grid(Sample~., switch='y') +
-        geom_vline(xintercept=intensity_median, color='red') +
+        geom_vline(xintercept=intensity_median, color='#ef8a62') +
         geom_vline(data=dat.quantiles, linetype='solid',  alpha=0.7, aes(xintercept=q50))+
         geom_vline(data=dat.quantiles, linetype='dashed', alpha=0.7,  aes(xintercept=q25))+
         geom_vline(data=dat.quantiles, linetype='dashed', alpha=0.7,  aes(xintercept=q75))+
@@ -245,12 +245,12 @@ scale_normalize_intensity <- function(DT.original) {
 plot_pg_intensities <- function(DT, output_dir, output_filename, plot_title) {
     n_samples <- length(unique(DT$Sample))
     g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
-        geom_boxplot(outlier.shape = NA, fill="steelblue") +
+        geom_boxplot(outlier.shape = NA, fill="#67a9cf") +
         theme_classic() +
         labs(fill = "",x="",y='Log10 Protein Intensity') +
         theme(axis.text.x = element_text( angle=90)) +
         geom_boxplot(width=0.1) +
-        geom_hline(color='red', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity), 0.50)))
+        geom_hline(color='#ef8a62', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity), 0.50)))
   
     if (n_samples>50){
         ggsave(plot = g,filename = paste0(output_dir, output_filename),width = n_samples/10,height =6)
@@ -747,7 +747,8 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', MSigDb_gmt_dir = NULL
     enrich_res=rbind(enrich_res,tmp_df)
 
     if (nrow(ego_cc)>0){
-        barplot(ego_cc, showCategory=20,label_format = 100)
+        barplot(ego_cc, showCategory=20,label_format = 100)+
+        scale_fill_gradient(low = "#ef8a62", high = "#67a9cf", na.value = NA)
         ggsave(file.path(outdir,paste0(out_prefix,'.go_cc.pdf')),width = width,height=height)
     }
 
@@ -770,7 +771,8 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', MSigDb_gmt_dir = NULL
     tmp_df$group='go_bp'
     enrich_res=rbind(enrich_res,tmp_df)
     if (nrow(ego_bp)>0){
-        barplot(ego_bp, showCategory=20,label_format = 100)
+        barplot(ego_bp, showCategory=20,label_format = 100)+
+        scale_fill_gradient(low = "#ef8a62", high = "#67a9cf", na.value = NA)
         ggsave(file.path(outdir,paste0(out_prefix,'.go_bp.pdf')),width=width,height=height)
     }
     }
@@ -794,7 +796,8 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', MSigDb_gmt_dir = NULL
     enrich_res=rbind(enrich_res,tmp_df)
 
     if (nrow(ego_mf)>0){
-        barplot(ego_mf, showCategory=20,label_format = 100)
+        barplot(ego_mf, showCategory=20,label_format = 100)+
+        scale_fill_gradient(low = "#ef8a62", high = "#67a9cf", na.value = NA)
         ggsave(file.path(outdir,paste0(out_prefix,'.go_mf.pdf')),width=width,height=height)
     }
     }
