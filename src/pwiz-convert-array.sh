@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --mem 8G
 #SBATCH --nodes 1
-#SBATCH --time 0:59:00
+#SBATCH --time 2:00:00
 #SBATCH --ntasks 2
 #SBATCH --partition quick,norm
 N=${SLURM_ARRAY_TASK_ID}
 filelist=${1}
+OUTDIR=${2}
 RAWFILE=$(head -n ${N} ${filelist} | tail -n 1)
 DATADIR="$(dirname ${RAWFILE})/"
 RAWFILE_BASENAME=$(basename $RAWFILE)
@@ -85,10 +86,11 @@ echo "INFO: /etc/localtime mount error can be ignored"
 
 singularity exec \
     -B ${DATADIR}:/data \
+    -B ${OUTDIR}:/mnt \
     -B `mktemp -d /dev/shm/wineXXX`:/mywineprefix \
     -w src/pwiz_sandbox \
     mywine msconvert \
         --32 \
         --filter "peakPicking vendor msLevel=1-" \
-        -o /data/ --verbose \
+        -o /mnt/ --verbose \
         /data/${RAWFILE_BASENAME}
