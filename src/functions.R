@@ -308,7 +308,7 @@ plot_correlation_heatmap <- function(DT.corrs, output_dir, output_filename) {
         filename=paste0(output_dir, output_filename),
         height=1.2*n_samples,
         width=2*n_samples,
-        units='cm')
+        units='cm',limitsize = FALSE)
   
 } 
 
