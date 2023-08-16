@@ -365,7 +365,7 @@ get_PCs <- function(DT) {
   setnames(out$summary, c('component','stdv','percent','cumulative'))
   out$summary$percent=round(out$summary$percent*100, digits = 2)
   pca_df = as.data.frame(pca$x)
-  pca_df$Condition=gsub('_[1-9]*$','',rownames(pca_df))
+  pca_df$Condition=gsub('_[0-9]+$','',rownames(pca_df))
   out$components <- pca_df
   return(out)
 }
@@ -404,7 +404,7 @@ get_umap <- function(DT, neighbors) {
     DT.umap <- umap(t(log2_cluster_data), n_neighbors=neighbors)
     DT.out <- as.data.table(DT.umap$layout, keep.rownames=TRUE)
     setnames(DT.out, c('Sample', 'UMAP1', 'UMAP2'))
-    DT.out$condition=gsub('_[1-9]*$','',DT.out$Sample)
+    DT.out$condition=gsub('_[0-9]+$','',DT.out$Sample)
     return(DT.out[])
 }
 
