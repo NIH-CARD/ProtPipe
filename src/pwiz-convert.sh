@@ -83,10 +83,11 @@ echo "INFO: /etc/localtime mount error can be ignored"
 
 singularity exec \
     -B ${DATADIR}:/data \
+    -B ${OUTDIR}:/mnt \
     -B `mktemp -d /dev/shm/wineXXX`:/mywineprefix \
     -w src/pwiz_sandbox \
     mywine msconvert \
         --32 \
         --filter "peakPicking vendor msLevel=1-" \
-        -o /data/ --verbose \
+        -o /mnt/ --verbose \
         /data/${RAWFILE_BASENAME}
