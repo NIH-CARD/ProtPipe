@@ -70,7 +70,7 @@ if [ -d src/pwiz_sandbox ]; then
     echo "INFO: ProteoWizard singularity sandbox wizard already configured at ${PWIZ}"
 else
     echo "INFO: ProteoWizard singularity sandbox wizard not found at src/pwiz_sandbox, attempting download"
-    wget -O pwiz.tar.gz ${URL}
+    wget -O pwiz_sandbox.tar.gz ${URL}
     tar -zxv -f pwiz_sandbox.tar.gz -C src/
 fi
 
