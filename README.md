@@ -94,7 +94,10 @@ submitting to your HPC with `sbatch`.
 
 Converting a single file:
 ```bash
-src/pwiz-convert /path/to/your/MassSpecFile.raw
+outdir='mzML'
+mkdir ${outdir}
+bash src/pwiz-convert.sh /path/to/your/MassSpecFile.raw ${outdir}
+
 ```
 
 Mass spec file conversion is handled by ProteoWizard (via wine in a singularity container).
@@ -134,9 +137,22 @@ rclone copy pwiz_sandbox.tar.gz onedrive:/singularity       # upload archive to 
 </details>
 
 # Bulk convert raw to mzml
+
+First, create `rawfiles.txt` that contains all `.raw` files to convert (one per line)
+
+For example:
 ```bash
+# Define file name
 filelist='rawfiles.txt'
+outdir='mzML'
+mkdir ${outdir}
+
+# find all files within the folder `ANXA11_redux` and print to file
 cat <(find ANXA11_redux | grep raw) > ${filelist}
+
+# get number of files
 nfiles=$(wc -l ${filelist} | awk '{print $1}')
-sbatch --array=1-${nfiles} src/pwiz-convert-array.sh ${filelist}
+
+# Submit array, one per file
+sbatch --array=1-${nfiles} src/pwiz-convert-array.sh ${filelist} ${outdir}
 ```
