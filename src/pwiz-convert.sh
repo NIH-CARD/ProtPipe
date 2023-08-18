@@ -6,11 +6,30 @@
 #SBATCH --partition quick,norm
 
 RAWFILE=${1}
+OUTDIR=${2}
+
+
+trap '[[ $? -eq 1 ]] && echo Halting execution due to errors' EXIT
+
+BADARGS=''
+
+if [ -z "$RAWFILE" ]; then
+    echo "ERROR: first argument must specify input .raw file"
+    BADARGS=True
+fi
+
+if [ -z "$OUTDIR" ]; then
+    echo "ERROR: second argument must specify output directory"
+    BADARGS=True
+fi
+
+if [ "$BADARGS" == 'True' ]; then
+    exit 1
+fi
+
 DATADIR="$(dirname ${RAWFILE})/"
 RAWFILE_BASENAME=$(basename $RAWFILE)
 PWIZ='src/pwiz_sandbox'
-
-trap '[[ $? -eq 1 ]] && echo Halting execution due to errors' EXIT
 
 ARGS="$@"
 
