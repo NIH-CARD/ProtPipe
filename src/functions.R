@@ -438,31 +438,31 @@ plot_umap <- function(DT, output_dir, output_filename) {
 
 do_t_test <- function(DT, treatment_samples, control_samples) {
   
-  dat <- copy(DT)
+  DT_ttest <- copy(DT)
   n_treatment <- length(treatment_samples)
   n_control <- length(control_samples)
   
   # Retain first three columns plus all treatment and control columns
-  dat <- dat[,c(colnames(DT)[1:2], treatment_samples, control_samples), with=F]
+  DT_ttest <- DT_ttest[,c(colnames(DT_ttest)[1:2], treatment_samples, control_samples), with=F]
   
   # Convert NA to 0
-  dat[is.na(dat)] <- 0
+  DT_ttest[is.na(DT_ttest)] <- 0
   
   # Drop rows (protein groups) with > 50% missingness in samples
-  dat[,'missing_value':= apply(.SD, 1, function(x) sum(x==0)), .SDcols=c(control_samples,treatment_samples) ]
-  dat <- dat[missing_value <= (n_treatment+n_control)/2]
-  dat[, 'missing_value' := NULL]
+  DT_ttest[,'missing_value':= apply(.SD, 1, function(x) sum(x==0)), .SDcols=c(control_samples,treatment_samples) ]
+  DT_ttest <- DT_ttest[missing_value <= (n_treatment+n_control)/2]
+  DT_ttest[, 'missing_value' := NULL]
   
   
   # Drop rows (protein groups) with 0 variance in treatment OR control group
-  dat[, 'control_var' := apply(.SD, 1, var), .SDcols=c(control_samples)]
-  dat[, 'treatment_var' := apply(.SD, 1, var), .SDcols=c(treatment_samples)]
-  dat <- dat[control_var != 0]
-  dat <- dat[treatment_var != 0]
-  dat[, c('control_var','treatment_var') := NULL]
+  DT_ttest[, 'control_var' := apply(.SD, 1, var), .SDcols=c(control_samples)]
+  DT_ttest[, 'treatment_var' := apply(.SD, 1, var), .SDcols=c(treatment_samples)]
+  DT_ttest <- DT_ttest[control_var != 0]
+  DT_ttest <- DT_ttest[treatment_var != 0]
+  DT_ttest[, c('control_var','treatment_var') := NULL]
   
   # Perform t-test  on treatment and control columns
-  t_test <- apply(dat[,-c(1:2)], 1, function(x){
+  t_test <- apply(DT_ttest[,-c(1:2)], 1, function(x){
     a =factor(c(rep('treatment',n_treatment),
                 rep("control",n_control)),
               levels = c('treatment',"control"))
@@ -484,7 +484,7 @@ do_t_test <- function(DT, treatment_samples, control_samples) {
   
   
   t_test <- rbindlist(t_test)
-  t_test <- cbind(dat[,c(1:2)], t_test)   # add back protein group / gene info cols
+  t_test <- cbind(DT_ttest[,c(1:2)], t_test)   # add back protein group / gene info cols
   t_test[, log2FC := log2(treatment_estimate / (control_estimate+1))]
   t_test[, p.adj := p.adjust(P_value, method='BH')]
   return(t_test[])
@@ -571,23 +571,23 @@ do_t_test <- function(DT, treatment_samples, control_samples) {
 
 do_t_test_APMS <- function(DT, treatment_samples, control_samples) {
   
-    dat <- copy(DT)
+    DT_ttest <- copy(DT)
     n_treatment <- length(treatment_samples)
     n_control <- length(control_samples)
 
     # Retain first three columns plus all treatment and control columns
-    dat <- dat[,c(colnames(DT)[1:2], treatment_samples, control_samples), with=F]
+    DT_ttest <- DT_ttest[,c(colnames(DT_ttest)[1:2], treatment_samples, control_samples), with=F]
 
     # Convert NA to 0
-    dat[is.na(dat)] <- 0
+    DT_ttest[is.na(DT_ttest)] <- 0
 
     # Drop rows (protein groups) with > 50% missingness in samples
-    dat[,'missing_value':= apply(.SD, 1, function(x) sum(x==0)), .SDcols=c(control_samples,treatment_samples) ]
-    dat <- dat[missing_value <= (n_treatment+n_control)/2]
-    dat[, 'missing_value' := NULL]
+    DT_ttest[,'missing_value':= apply(.SD, 1, function(x) sum(x==0)), .SDcols=c(control_samples,treatment_samples) ]
+    DT_ttest <- DT_ttest[missing_value <= (n_treatment+n_control)/2]
+    DT_ttest[, 'missing_value' := NULL]
 
     # Perform t-test  on treatment and control columns
-    t_test <- apply(dat[,-c(1:2)], 1, function(x){
+    t_test <- apply(DT_ttest[,-c(1:2)], 1, function(x){
     a =factor(c(rep('treatment',n_treatment),
                 rep("control",n_control)),
                 levels = c('treatment',"control"))
