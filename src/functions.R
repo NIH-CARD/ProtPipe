@@ -376,7 +376,7 @@ plot_PCs <- function(PCA, output_dir, output_filename) {
         xlab(paste0("PC1","(",PCA$summary$percent[1],"%)")) +
         ylab(paste0("PC2","(",PCA$summary$percent[2],"%)")) +
         theme_classic()
-    ggsave(p,filename=paste0(output_dir, output_filename), height = 7,width = 9)
+    ggsave(p,filename=paste0(output_dir, output_filename), height = 4,width = 5)
 }
 
 
@@ -414,7 +414,7 @@ plot_umap <- function(DT, output_dir, output_filename) {
     geom_point(size=4) +
     theme_classic() 
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
-    ggsave(g, filename=paste0(output_dir, output_filename), height = 7,width = 9)
+    ggsave(g, filename=paste0(output_dir, output_filename), height = 4,width = 5)
 }
 
 # filter_pgs <- function(DT.all, treatment_sample_names, treatment, control)  {
