@@ -110,14 +110,14 @@ plot_pg_counts <- function(DT, output_dir, output_filename) {
     p=ggplot(DT, aes(x=Sample, y=N)) +
       geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
-      labs(fill = "",x="Sample",y='Number of Protein Groups')+
+      labs(fill = "",x="",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))
   }
   if (n_samples < 20) {
     p=ggplot(DT, aes(x=Sample, y=N)) +
       geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
-      labs(fill = "",x="Sample",y='Number of Protein Groups')+
+      labs(fill = "",x="",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))+ 
       geom_text(aes(label=N, y=N + (0.05*max(DT$N))))
   }
