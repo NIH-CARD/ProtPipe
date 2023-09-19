@@ -119,7 +119,7 @@ plot_pg_counts <- function(DT, output_dir, output_filename) {
       theme_classic()+
       labs(fill = "",x="Sample",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))+ 
-      geom_text(aes(label=N, y=N + (0.05*max(pgcounts$N))))
+      geom_text(aes(label=N, y=N + (0.05*max(DT$N))))
   }
   
   if (n_samples>50){
