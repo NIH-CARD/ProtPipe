@@ -1007,3 +1007,40 @@ plot_mhc_affinity <- function(sample) {
   
 }
 
+
+#heatmap
+
+plot_heatmap <- function(DT_heatmap) {
+  sample_anno <- data.frame(condition = as.factor(sort(colnames(DT_heatmap)[3:ncol(DT_heatmap)])))
+  row.names(sample_anno) <- sample_anno$condition
+  sample_anno$condition=gsub("_[0-9]*$","",sample_anno$condition)
+  DT_heatmap[is.na(DT_heatmap)]=0
+  pheatmap(log2(DT_heatmap[,3:ncol(DT_heatmap)]+1),
+           scale='row',
+           show_rownames = F,
+           annotation_col = sample_anno,
+           cluster_cols = F,
+           treeheight_row=0,
+           filename=paste0(opt$outdir,'/','heatmap_all.pdf'))
+}
+
+plot_heatmap_subset <- function(DT_heatmap,gene) {
+  sample_anno <- data.frame(condition = as.factor(sort(colnames(DT_heatmap)[3:ncol(DT_heatmap)])))
+  row.names(sample_anno) <- sample_anno$condition
+  sample_anno$condition=gsub("_[0-9]*$","",sample_anno$condition)
+  DT_heatmap[is.na(DT_heatmap)]=0
+  
+  subset_DT=data.frame(DT_heatmap[DT_heatmap$Genes %in% gene$Gene ,])
+  subset_DT=subset_DT[!duplicated(subset_DT$Genes),]
+  rownames(subset_DT)=subset_DT$Genes
+  
+  pheatmap(log2(subset_DT[,3:ncol(subset_DT)]+1),
+           scale='row',
+           show_rownames = T,
+           annotation_col = sample_anno,
+           cluster_cols = F,
+           treeheight_row=0,
+           border_color =NA,
+           filename=paste0(opt$outdir,'/','heatmap_label_gene.pdf'))
+  
+}

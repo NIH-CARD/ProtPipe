@@ -34,6 +34,12 @@ option_list = list(
         help='Gene to always label in output plots'
     ),
     make_option(
+      "--heatmap",
+      dest="heatmap",
+      default=NULL, 
+      help='Gene to plot heatmap'
+    ),
+    make_option(
         "--base",
         dest="log_base",
         default=10, 
@@ -465,7 +471,7 @@ if ((ncol(dat)-3)>opt$neighbors) {
 
 
 
-#### DIFFERENTIAL INTENSITY ########################################################################
+#### DIFFERENTIAL INTENSITY########################################################################
 
 tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
     for (treatment in conditions) {
@@ -483,5 +489,13 @@ tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
         }
     }
 }, 'ERROR: failed!')
+
+
+#### HEATMAP ########################################################################
+plot_heamap(dat)
+if (!is.null(opt$heatmap)) {
+  plot_heatmap_subset(dat,opt$heatmap)
+}
+
 
 quit()
