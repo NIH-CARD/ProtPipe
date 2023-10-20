@@ -169,15 +169,10 @@ option_list = list(
     )
 )
 
-
-
 usage_string <- "Rscript %prog --pgfile [filename] --design [filename] [other options] "
 opt <- parse_args(OptionParser(usage = usage_string, option_list))
 
-
 source('src/functions.R')
-
-
 
 # Set to TRUE when running interactively for debugging, to set test opts
 if(FALSE) {
@@ -213,15 +208,9 @@ if (is.null(opt$pgfile)) {
     badargs <- TRUE
 }
 
-if (is.null(opt$design)) {
-    cat("ERROR: --design <file> must be provided\n")
-    badargs <- TRUE
-}
-
 if (badargs == TRUE) {
     quit(status=1)
 }
-
 
 #### PACKAGES ######################################################################################
 package_list = c('ggplot2', 'data.table', 'corrplot', 'umap', 'magick', 'ggdendro', 'ecodist','ggbeeswarm', 'ggrepel', 'ggthemes', 'foreach','reshape2','org.Hs.eg.db','clusterProfiler','pheatmap')
@@ -236,12 +225,9 @@ if(all((lapply(package_list, require, character.only=TRUE)))) {
 }
 options(warn = defaultW)    # Turn warnings back on
 
-
-
 opt$lfc_threshold <- log(opt$foldchange, base=2)
 cat(paste0('INFO: LFC threshold of log2(Intensity) > ', opt$lfc_threshold, '\n'))
 cat(paste0('INFO: FDR threshold of ', opt$fdr_threshold, '\n'))
-
 
 #### MAKE DIRS #####################################################################################
 
@@ -250,23 +236,23 @@ if(! dir.exists(QC_dir)){
     dir.create(QC_dir, recursive = T)
 }
 
-
 cluster_dir <- paste0(opt$outdir, '/Clustering/')
 if(! dir.exists(cluster_dir)){
     dir.create(cluster_dir, recursive = T)
 }
 
-
-DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
-if(! dir.exists(DI_dir)){
+if (!is.null(opt$design)) {
+  DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
+  if(! dir.exists(DI_dir)){
     dir.create(DI_dir, recursive = T)
+  }
+  
+  EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
+  if(! dir.exists(EA_dir)){
+    dir.create(EA_dir, recursive = T)
+  }
 }
-
-EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
-if(! dir.exists(EA_dir)){
-  dir.create(EA_dir, recursive = T)
-}
-
+  
 #### IMPORT AND FORMAT DATA#########################################################################
 
 tryTo(paste0('INFO: Reading input file ', opt$pgfile),{
@@ -275,8 +261,6 @@ tryTo(paste0('INFO: Reading input file ', opt$pgfile),{
 
 tryTo(paste0('INFO: Massaging data from ', opt$pgfile, ' into a common style format for processing'), {
     dat <- standardize_format(dat)
-    
-    
 }, 'ERROR: failed! Check for missing/corrupt headers?')
 
 tryTo(paste0('INFO: Trimming extraneous column name info'), {
@@ -289,7 +273,6 @@ tryTo(paste0('INFO: Trimming extraneous column name info'), {
 # exclude samples in opt$exclude
 if (! is.null(opt$exclude)) {
   opt$exclude <- strsplit(opt$exclude, split=';')[[1]]
-  
   tryTo(paste('INFO: excluding samples', opt$exclude),{
     for(i in opt$exclude) {
       dat[, (i) := NULL]
@@ -310,7 +293,6 @@ tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
   dat.long <- dat.long[Intensity > opt$minintensity]
 }, 'ERROR: failed!')
 
-
 #### QC ############################################################################################
 
 ## Plotting intensity distribution
@@ -321,13 +303,11 @@ tryTo('INFO: Plotting intensity distribution',{
     # plot_density(dat.long.normalized, QC_dir, 'intensity_density_normalized.pdf')
 }, 'ERROR: failed!')
 
-
 ## Normalization takes place by default, and can be modified with the --normalize flag. See opts.
 if (opt$normalize == 'none') {
     cat('Skipping median-normalization due to --normalize none\n')
 } else {
     if (opt$normalize == 'shift') {
-
         tryTo('INFO: Calculating median-normalized intensities by shifting sample intensities',{
             dat.long <- shift_normalize_intensity(dat.long)
         }, 'ERROR: failed!')
@@ -335,7 +315,6 @@ if (opt$normalize == 'none') {
         tryTo('INFO: Plotting shift-normalized intensity distributions',{
           plot_pg_intensities(dat.long, QC_dir, 'intensities_shift_normalized.pdf', plot_title='shift-normalized intensities')
         }, 'ERROR: failed!')
-
     } else if (opt$normalize == 'scale') {
 
         tryTo('INFO: Calculating median-normalized intensities by scaling sample intensities',{
@@ -354,11 +333,6 @@ if (opt$normalize == 'none') {
     }, 'ERROR: failed!')
 }
 
-
-
-
-
-
 # pgcounts represents the distribution of Protein Groups with Intensity > 0
 # Visually, it is represented as a bar plot with x=sample, y=N, ordered by descending N
 # Get counts of [N=unique gene groups with `Intensity` > 0]
@@ -369,42 +343,41 @@ tryTo('INFO: Tabulating protein group counts',{
     plot_pg_counts(pgcounts, QC_dir, 'protein_group_nonzero_counts.pdf')
 }, 'ERROR: failed!')
 
-
 tryTo('INFO: Plotting sample intensity correlations',{
     dat.correlations <- get_spearman(dat)
     ezwrite(dat.correlations, QC_dir, 'sample_correlation.tsv')
     plot_correlation_heatmap(dat.correlations, QC_dir, 'sample_correlation.pdf')
 }, 'ERROR: failed!')
 
-
-tryTo('INFO: Importing experimental design',{
-    design <- fread(opt$design, header=TRUE)
-    setnames(design, c('sample_name', 'condition', 'control'))
-}, 'ERROR: failed!')
-
 if (!is.null(opt$exclude)) {
-    tryTo(paste('INFO: excluding samples', opt$exclude),{
-        design <- design[! sample_name %in% opt$exclude]
-    }, 'ERROR: failed!')
+  tryTo(paste('INFO: excluding samples', opt$exclude),{
+    design <- design[! sample_name %in% opt$exclude]
+  }, 'ERROR: failed!')
 }
 
-tryTo('INFO: Validating experimental design',{
+if (!is.null(opt$design)) {
+  tryTo('INFO: Importing experimental design',{
+    design <- fread(opt$design, header=TRUE)
+    setnames(design, c('sample_name', 'condition', 'control'))
+  }, 'ERROR: failed!')
+  tryTo('INFO: Validating experimental design',{
     print(design[])
     cat('\n')
     conditions <- unique(design$condition)
     for (condition.i in conditions) {
-        samples <- design[condition == condition.i, sample_name]
-        control <- unique(design[condition == condition.i, control])
-        if (length(control) != 1) {
-            cat(paste0('ERROR: condition ', condition.i, ' maps to multiple controls: ', control, '\n'))
-            cat(paste0('       Check the design matrix and esure no more than one control label per condition\n'))
-            quit(exit=1)
-        } else {
-            cat(paste0('INFO: condition ', condition.i, ' maps to control ', control, '\n'))
-        }
+      samples <- design[condition == condition.i, sample_name]
+      control <- unique(design[condition == condition.i, control])
+      if (length(control) != 1) {
+        cat(paste0('ERROR: condition ', condition.i, ' maps to multiple controls: ', control, '\n'))
+        cat(paste0('       Check the design matrix and esure no more than one control label per condition\n'))
+        quit(exit=1)
+      } else {
+        cat(paste0('INFO: condition ', condition.i, ' maps to control ', control, '\n'))
+      }
     }
     cat(paste0('INFO: all conditions pass check (i.e. map to one control condition)\n'))
-}, 'ERROR: failed!')
+  }, 'ERROR: failed!')
+}
 
 
 ## Exclude samples with N protein groups < opt$sds away from mean
@@ -439,11 +412,7 @@ tryTo('INFO: Identifying samples with protein group count outliers',{
     }
 }, 'ERROR: failed!')
 
-
-
 #### CLUSTERING ####################################################################################
-
-
 # PCA
 tryTo('INFO: running PCA and plotting first two components',{
     pca <- get_PCs(dat)
@@ -452,12 +421,10 @@ tryTo('INFO: running PCA and plotting first two components',{
     plot_PCs(pca, cluster_dir, 'PCA.pdf')
 }, 'ERROR: failed!')
 
-
 # Hierarchical Clustering
 tryTo('INFO: running Hierarchical Clustering',{
     plot_hierarchical_cluster(dat, cluster_dir)
 }, 'ERROR: failed!')
-
 
 # UMAP
 if ((ncol(dat)-3)>opt$neighbors) {
@@ -468,34 +435,30 @@ if ((ncol(dat)-3)>opt$neighbors) {
   }, 'ERROR: failed!')
 }
 
-
-
-
 #### DIFFERENTIAL INTENSITY########################################################################
-
-tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
+if (!is.null(opt$design)) {
+  tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
     for (treatment in conditions) {
       print(paste0(treatment, ' vs ', control, ' DE analysis'))
       treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
-        if (length(treatment_sample_names)==0) {next}
-        control <- unique(design[condition == treatment, control])
-        control_sample_names <- colnames(dat)[colnames(dat) %like% control]
-        if (length(control_sample_names)==0) {next}
-        if(treatment != control) {
-            t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
-            ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
-            plot_volcano(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
-            enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
-        }
+      if (length(treatment_sample_names)==0) {next}
+      control <- unique(design[condition == treatment, control])
+      control_sample_names <- colnames(dat)[colnames(dat) %like% control]
+      if (length(control_sample_names)==0) {next}
+      if(treatment != control) {
+        t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
+        ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
+        plot_volcano(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
+        enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
+      }
     }
-}, 'ERROR: failed!')
-
+  }, 'ERROR: failed!')
+}
 
 #### HEATMAP ########################################################################
-plot_heamap(dat)
+plot_heatmap(dat)
 if (!is.null(opt$heatmap)) {
   plot_heatmap_subset(dat,opt$heatmap)
 }
-
 
 quit()
