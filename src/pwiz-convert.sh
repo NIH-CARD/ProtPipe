@@ -50,8 +50,6 @@ if [ "$#" != 0 ]; then
     shift  # $EOL
 fi
 
-mkdir -p ${OUT}
-
 
 if [ ! -z "${FILE+x}" ] && [ ! -z "${DIR+x}" ]; then
     TOOMANY=True
