@@ -32,7 +32,7 @@ if [ "$#" != 0 ]; then
 
             # Your options go here.
             --file) assert_argument "$1" "$opt"; FILE="$1"; shift;;
-            --dir) assert_argument "$1" "$opt"; DIR="$1"; shift;;
+            --dir) assert_argument "$1" "$opt"; DATADIR="$1"; shift;;
             --list) assert_argument "$1" "$opt"; LIST="$1"; shift;;
             --out) assert_argument "$1" "$opt"; OUT="$1"; shift;;
             
@@ -60,11 +60,11 @@ if [ -v "${FILE+x}" ] && [ -v "${LIST+x}" ]; then
     TOOMANY=True
 fi
 
-if [ -v "${DIR+x}" ] && [ -v "${LIST+x}" ]; then
+if [ -v "${DATADIR+x}" ] && [ -v "${LIST+x}" ]; then
     TOOMANY=True
 fi
 
-if [ -z "${DIR}" ] && [ -z "${FILE}" ] && [ -z "${LIST}" ]; then
+if [ -z "${DATADIR}" ] && [ -z "${FILE}" ] && [ -z "${LIST}" ]; then
     echo "ERROR: No inputs given!"
     echo "Provide ONE of --file, --dir or --list" 
     exit 1
@@ -123,7 +123,10 @@ run_pwiz() {
     echo "INFO: /etc/localtime mount error can be ignored"
 
     echo "run_pwiz ${datadir} ${outdir} ${infile}"
-    echo singularity exec \
+
+    [[ $infile =~ .*\.(raw$|RAW$) ]] || { echo "$infile is not RAW file! Skipping..."; return 0; }
+
+    singularity exec \
         -B ${datadir}:/data \
         -B ${outdir}:/mnt \
         -B `mktemp -d /dev/shm/wineXXX`:/mywineprefix \
@@ -141,14 +144,14 @@ if [ -z "${OUT}" ]; then
     echo "      Override with --out DIRNAME"
     OUT="${PWD}/mzML"
 fi
+
 mkdir -p ${OUT}
 
 if [ ! -z "${FILE}" ]; then
     DATADIR=$(dirname ${FILE})
     run_pwiz ${DATADIR} ${OUT} ${FILE}
-elif [ ! -z "${DIR}" ]; then
+elif [ ! -z "${DATADIR}" ]; then
     FILES=$(ls ${DATADIR})
-    DATADIR=${DIR}
     parallel -j 1 run_pwiz ::: ${DATADIR} ::: ${OUT} ::: ${FILES[@]}
 elif [ ! -z "${LIST}" ]; then
     readarray -t FILES <${LIST}
