@@ -1,35 +1,20 @@
 #!/usr/bin/env bash
 #SBATCH --mem 8G
 #SBATCH --nodes 1
-#SBATCH --time 0:59:00
+#SBATCH --time 2:00:00
 #SBATCH --ntasks 2
 #SBATCH --partition quick,norm
 
-RAWFILE=${1}
-OUTDIR=${2}
+
 
 
 trap '[[ $? -eq 1 ]] && echo Halting execution due to errors' EXIT
 
-BADARGS=''
 
-if [ -z "$RAWFILE" ]; then
-    echo "ERROR: first argument must specify input .raw file"
-    BADARGS=True
-fi
-
-if [ -z "$OUTDIR" ]; then
-    echo "ERROR: second argument must specify output directory"
-    BADARGS=True
-fi
-
-if [ "$BADARGS" == 'True' ]; then
-    exit 1
-fi
-
-DATADIR="$(dirname ${RAWFILE})/"
-RAWFILE_BASENAME=$(basename $RAWFILE)
+# RAWFILE=$(head -n ${N} ${filelist} | tail -n 1)
+# RAWFILE_BASENAME=$(basename $RAWFILE)
 PWIZ='src/pwiz_sandbox'
+
 
 ARGS="$@"
 
@@ -47,7 +32,10 @@ if [ "$#" != 0 ]; then
 
             # Your options go here.
             --file) assert_argument "$1" "$opt"; FILE="$1"; shift;;
-            --dir) assert_argument "$1" "$opt"; DIR="$1"; shift;;
+            --dir) assert_argument "$1" "$opt"; DATADIR="$1"; shift;;
+            --list) assert_argument "$1" "$opt"; LIST="$1"; shift;;
+            --out) assert_argument "$1" "$opt"; OUT="$1"; shift;;
+            
       
             # Arguments processing. You may remove any unneeded line after the 1st.
             -|''|[!-]*) set -- "$@" "$opt";;                                          # positional argument, rotate to the end
@@ -61,6 +49,34 @@ if [ "$#" != 0 ]; then
     done
     shift  # $EOL
 fi
+
+
+
+if [ ! -z "${FILE+x}" ] && [ ! -z "${DIR+x}" ]; then
+    TOOMANY=True
+fi
+
+if [ -v "${FILE+x}" ] && [ -v "${LIST+x}" ]; then
+    TOOMANY=True
+fi
+
+if [ -v "${DATADIR+x}" ] && [ -v "${LIST+x}" ]; then
+    TOOMANY=True
+fi
+
+if [ -z "${DATADIR}" ] && [ -z "${FILE}" ] && [ -z "${LIST}" ]; then
+    echo "ERROR: No inputs given!"
+    echo "Provide ONE of --file, --dir or --list" 
+    exit 1
+fi
+
+if [ "${TOOMANY}" == 'True' ]; then
+    echo "ERROR: Multiple input modes provided."
+    echo "Only provide ONE of --file, --dir or --list"
+    exit 1
+fi
+
+
 
 #### CHECK SINGULARITY #############################################################################
 if ! command -v singularity &> /dev/null; then
@@ -97,16 +113,54 @@ fi
 
 #### CONVERT TO MZML ###############################################################################
 
-echo "INFO: Converting ${RAWFILE} to .mzML"
-echo "INFO: /etc/localtime mount error can be ignored"
 
-singularity exec \
-    -B ${DATADIR}:/data \
-    -B ${OUTDIR}:/mnt \
-    -B `mktemp -d /dev/shm/wineXXX`:/mywineprefix \
-    -w src/pwiz_sandbox \
-    mywine msconvert \
-        --32 \
-        --filter "peakPicking vendor msLevel=1-" \
-        -o /mnt/ --verbose \
-        /data/${RAWFILE_BASENAME}
+run_pwiz() {
+    local datadir=${1}
+    local outdir=${2}
+    local infile=${3}
+    echo "INFO: Converting ${infile} from ${datadir} to .mzML"
+    echo "INFO: Output saved to ${outdir}"
+    echo "INFO: /etc/localtime mount error can be ignored"
+
+    echo "run_pwiz ${datadir} ${outdir} ${infile}"
+
+    [[ $infile =~ .*\.(raw$|RAW$) ]] || { echo "$infile is not RAW file! Skipping..."; return 0; }
+
+    singularity exec \
+        -B ${datadir}:/data \
+        -B ${outdir}:/mnt \
+        -B `mktemp -d /dev/shm/wineXXX`:/mywineprefix \
+        -w src/pwiz_sandbox \
+        mywine msconvert \
+            --32 \
+            --filter "peakPicking vendor msLevel=1-" \
+            -o /mnt/ --verbose \
+            /data/${infile}
+}
+export -f run_pwiz
+
+if [ -z "${OUT}" ]; then
+    echo "INFO: Saving mzML to ./mzML"
+    echo "      Override with --out DIRNAME"
+    OUT="${PWD}/mzML"
+fi
+
+mkdir -p ${OUT}
+
+if [ ! -z "${FILE}" ]; then
+    DATADIR=$(dirname ${FILE})
+    run_pwiz ${DATADIR} ${OUT} ${FILE}
+elif [ ! -z "${DATADIR}" ]; then
+    FILES=$(ls ${DATADIR})
+    parallel -j 1 run_pwiz ::: ${DATADIR} ::: ${OUT} ::: ${FILES[@]}
+elif [ ! -z "${LIST}" ]; then
+    readarray -t FILES <${LIST}
+    while read FILE; do
+        DATADIR=$(dirname ${FILE})
+        run_pwiz ${DATADIR} ${OUT} ${FILE}
+    done
+else
+    echo "No input given!"
+fi
+
+echo "Reached the end... Exiting"
