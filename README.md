@@ -10,7 +10,7 @@ We include a convenient wrapper script for running DIA-NN inside a pre-built sin
 # Quick-start
 
 1. Ensure `singularity` is installed and accessible on your system. Many HPCs (including NIH Biowulf) come with this pre-installed as a module. If your HPC has singularity installed, it will be automatically detected and loaded when necessary.
-2. Clone this repository, i.e. execute `git clone https://github.com/lzy604/Protpipe.git`
+2. Clone this repository, i.e. execute `git clone https://github.com/NIH-CARD/ProtPipe`
 3. If you are predicting protein abundances from raw mass spec output, look over and edit any custom `DIA-NN` parameters inside [`config.txt`](config.txt). You can either edit `config.txt` directly (and it will be used by default), or make a copy and save it to a different file name, then reference it with `--cfg newfilename.txt` when running the wrapper script.
 
 
