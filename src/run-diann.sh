@@ -52,7 +52,7 @@ fi
 print_preamble() {
     echo -e '\n\nProtPipe: An all-in-one wrapper for DIA analysis in a singularity container'
     echo -e 'See GitHub for updates: https://www.github.com/cory-weller/ProtPipe\n'
-    echo -e 'Using DIA-NN version: 1.8.1 ran in singularity 3.x\n'
+    echo -e 'Using DIA-NN version: 1.8.1 ran in singularity\n'
     echo -e "command called:\n$(echo run-diann.sh $ARGS | sed -e 's/\( --\)/ \\\n   \1/g')\n"
 }
 
@@ -98,14 +98,14 @@ check_singularity_exists() {
             echo "WARNING: module command not found. Did you mean to run this on an HPC?"
             BADARGS='TRUE'
         else
-            if $(module avail singularity/3 2>&1 >/dev/null | grep -q 'No module'); then
+            if $(module avail singularity 2>&1 >/dev/null | grep -q 'No module'); then
                 echo 'WARNING: module singularity not found'
                 echo 'ERROR: singularity cannot be found. Recheck installation?'
                 BADARGS='TRUE'
             else
                 echo 'INFO: module singularity found'
                 SINGULARITY_EXISTS='TRUE'
-                module load singularity/3
+                module load singularity
             fi
         fi
     else
@@ -117,8 +117,8 @@ check_singularity_exists() {
 
 check_singularity_version() {
     if [ "${SINGULARITY_EXISTS}" == 'TRUE' ]; then
-        if ! singularity --version | grep -q "version 3."; then
-            echo "WARNING: Singularity is not version 3. This may result in unexpected behavior."
+        if ! singularity --version | grep -q "version 4."; then
+            echo "WARNING: Singularity is not version 4. This may result in unexpected behavior."
         fi
     fi
 }
