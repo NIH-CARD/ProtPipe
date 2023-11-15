@@ -863,7 +863,13 @@ plot_PPI_rank <- function(t_test,PPI_score,lfc_threshold, fdr_threshold, output_
         size = 5,
         max.overlaps=50,
         box.padding = unit(0.35, "lines"),
-        point.padding = unit(0.3, "lines"))
+        point.padding = unit(0.3, "lines"))+
+      theme(axis.title.x = element_text(size=20, face="bold"),
+            axis.title.y = element_text(size=20, face="bold"),
+            axis.text.x = element_text(size=14, angle=0),
+            axis.text.y = element_text(size=14, angle=0),
+            legend.title=element_text(size=20),
+            legend.text = element_text(size=14))
 
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
     ggsave(g, filename=paste0(output_dir, output_filename), height=10, width=12)
