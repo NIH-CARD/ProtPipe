@@ -609,7 +609,7 @@ do_t_test_APMS <- function(DT, treatment_samples, control_samples) {
 
 
     t_test <- rbindlist(t_test)
-    t_test <- cbind(dat[,c(1:2)], t_test)   # add back protein group / gene info cols
+    t_test <- cbind(DT_ttest[,c(1:2)], t_test)   # add back protein group / gene info cols
     t_test[, log2FC := log2(treatment_estimate / (control_estimate+1))]
     t_test[, p.adj := p.adjust(P_value, method='BH')]
     return(t_test[])
