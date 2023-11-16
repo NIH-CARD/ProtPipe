@@ -113,7 +113,7 @@ plot_pg_counts <- function(DT, output_dir, output_filename) {
       labs(fill = "",x="",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))
   }
-  if (n_samples < 20) {
+  if (n_samples <= 20) {
     p=ggplot(DT, aes(x=Sample, y=N)) +
       geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
@@ -138,7 +138,7 @@ plot_pep_counts <- function(DT, output_dir, output_filename) {
       labs(fill = "",x="Sample",y='Number of Peptides')+
       scale_x_discrete(guide = guide_axis(angle = 90))
   }
-  if (n_samples < 20) {
+  if (n_samples <= 20) {
     p=ggplot(DT, aes(x=Sample, y=N)) +
       geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
@@ -950,12 +950,12 @@ plot_mhc_affinity <- function(sample) {
     geom_label_repel(
       data = subset(sample_prediction[1:5,]),
       aes(label = peptide),
-      size = 3,
+      size = 3,nudge_x=0.2,
       box.padding = unit(0.35, "lines"),
       point.padding = unit(0.3, "lines"))+
-    xlab('-log10(MHC Affinity)') +
-    ylab('-log2(MHC Affinity Percentile))')
-  ggsave(g, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele.pdf"),width = 8,height = 8)
+    xlab('-Log10(MHC Affinity)') +
+    ylab('-Log2(MHC Affinity Percentile)')
+  ggsave(g, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele.pdf"),width = 6,height = 5)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele.pdf", '\n'))
   
   
@@ -969,8 +969,8 @@ plot_mhc_affinity <- function(sample) {
       box.padding = unit(0.35, "lines"),
       point.padding = unit(0.3, "lines"))+
     xlab('Rank') +
-    ylab('-log2(MHC Affinity)')
-  ggsave(p, filename=paste0(MHC_dir,sample,"_mhc_affinity_rank.pdf"),width = 8,height = 8)
+    ylab('-Log2(MHC Affinity)')
+  ggsave(p, filename=paste0(MHC_dir,sample,"_mhc_affinity_rank.pdf"),width = 5,height = 5)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_rank.pdf", '\n'))
   
   
@@ -988,16 +988,19 @@ plot_mhc_affinity <- function(sample) {
       data = subset(label_text),
       aes(label = peptide),
       size = 2)+
-    xlab('-log10(MHC Affinity)') +
-    ylab('-log2(MHC Affinity Percentile))')
+    xlab('-Log10(MHC Affinity)') +
+    ylab('-Log2(MHC Affinity Percentile)')+
+    theme(legend.position="top")
   
-  ggsave(f, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele_separated.pdf"),width = 8,height = 8)
+  ggsave(f, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele_separated.pdf"),width = 6,height = 8)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele_separated.pdf", '\n'))
   
   f <- ggplot(sample_prediction, aes(x=allele, y=log2(mhcflurry_affinity))) +
     geom_dotplot(binaxis='y',, stackdir='center',binwidth = 1/50,color='#E69F00',fill="#E69F00")+
-    theme_classic()
-  ggsave(f, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele_dotplot.pdf"),width = 8,height = 8)
+    theme_classic()+
+    theme(axis.text.x = element_text( angle=90))+
+    labs(fill = "",x="HLA alle",y='Log2(mhcflurry_affinity)')
+  ggsave(f, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele_dotplot.pdf"),width = 5,height = 5)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele_dotplot.pdf", '\n'))
   
   
@@ -1005,9 +1008,9 @@ plot_mhc_affinity <- function(sample) {
   p=ggplot(number, aes(x=allele, y=N)) +
     geom_bar(stat="identity", fill="steelblue")+
     theme_classic()+
-    labs(fill = "",x="",y='Number of Peptide')+
+    labs(fill = "",x="HLA alle",y='Number of Peptide')+
     scale_x_discrete(guide = guide_axis(angle = 90))
-  ggsave(p, filename=paste0(MHC_dir,sample,"_mhc_affinity_peptide_count.pdf"),width = 8,height = 8)
+  ggsave(p, filename=paste0(MHC_dir,sample,"_mhc_affinity_peptide_count.pdf"),width = 5,height = 5)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_peptide_count.pdf", '\n'))
   
   
