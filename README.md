@@ -90,7 +90,7 @@ Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing
 
 DIA-NN cannot handle some propietary file formats such as thermo fisher RAW. Thus these files must
 be converted (i.e. to mzML) prior to running DIA-NN. Conversion can be done with the included script
-[pwiz-convert.sh](src/pwiz-convert). 
+[pwiz-convert.sh](src/pwiz-convert.sh). 
 
 Conversion can be done by specifying either
 * a single input file with `--file`
