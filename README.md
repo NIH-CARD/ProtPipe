@@ -89,14 +89,20 @@ Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing
 ## Converting Mass Spec file formats
 
 DIA-NN cannot handle some propietary file formats such as thermo fisher RAW. Thus these files must
-be converted (i.e. to mzML) prior to running DIA-NN. Conversion can be done interactively or by
-submitting to your HPC with `sbatch`.
+be converted (i.e. to mzML) prior to running DIA-NN. Conversion can be done with the included script
+[pwiz-convert.sh](src/pwiz-convert). 
 
-Converting a single file:
-```bash
-outdir='mzML'
-mkdir ${outdir}
-bash src/pwiz-convert.sh /path/to/your/MassSpecFile.raw ${outdir}
+Conversion can be done by specifying either
+* a single input file with `--file`
+* an entire directory with `--dir`
+* a text file that lists inputs, one per line, with `--list`
+Along with a single output directory with `--out`.
+
+For example:
+```
+bash src/pwiz-convert.sh --file myfile.raw --out mzml_outdir
+bash src/pwiz-convert.sh --dir path/to/rawfiles/ --out mzml_outdir
+bash src/pwiz-convert.sh --list rawfiles.txt --out mzml_outdir
 
 ```
 
@@ -135,24 +141,3 @@ tar -czvf pwiz_sandbox.tar.gz pwiz_sandbox
 rclone copy pwiz_sandbox.tar.gz onedrive:/singularity       # upload archive to cloud
 ```
 </details>
-
-# Bulk convert raw to mzml
-
-First, create `rawfiles.txt` that contains all `.raw` files to convert (one per line)
-
-For example:
-```bash
-# Define file name
-filelist='rawfiles.txt'
-outdir='mzML'
-mkdir ${outdir}
-
-# find all files within the folder `ANXA11_redux` and print to file
-cat <(find ANXA11_redux | grep raw) > ${filelist}
-
-# get number of files
-nfiles=$(wc -l ${filelist} | awk '{print $1}')
-
-# Submit array, one per file
-sbatch --array=1-${nfiles} src/pwiz-convert-array.sh ${filelist} ${outdir}
-```
