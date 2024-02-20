@@ -818,7 +818,8 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', MSigDb_gmt_dir = NULL
     #  ggsave(file.path(outdir,paste0(out_prefix,'.kegg.pdf')),width=width,height=height)
     # }
     print('Save enrichment analysis results')
-    write.table(enrich_res,file.path(outdir,paste0(out_prefix,'.enrich_res.txt')),quote = F,sep = '\t')
+    ezwrite(enrich_res, outdir, paste0(out_prefix,'.enrich_res.tsv'))
+    #write.csv(enrich_res,file.path(outdir,paste0(out_prefix,'.enrich_res.csv')),row.names = F)
 }
 
 get_ppi <- function(protein,DT,lfc_threshold, fdr_threshold) {
