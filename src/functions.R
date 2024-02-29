@@ -51,17 +51,29 @@ standardize_format <- function(DT.original) {
         DT[, 'First.Protein.Description' := NULL]
         setnames(DT, 'Protein.Group', 'Protein_Group')
     } 
-    else if('PG.ProteinGroups' %in% colnames(DT)) {
+    else if('EG.PrecursorId' %in% colnames(DT)) {
       print("Spectronaut input")
-      setnames(DT, 'PG.ProteinGroups', 'Protein_Group')
+      setnames(DT, 'EG.PrecursorId', 'Peptide_Sequence')
       setnames(DT, 'PG.Genes', 'Genes')
         DT=as.data.frame(DT)
         # Use only Protein_Group and Genes
-        col_select=c('Protein_Group','Genes',grep('PG.Quantity',colnames(DT),value = T))
+        col_select=c('Peptide_Sequence','Genes',grep('raw',colnames(DT),value = T))
         DT=DT[, col_select]
         #as number
         DT[,grep('PG.Quantity',colnames(DT))]=as.data.frame(apply(DT[,grep('PG.Quantity',colnames(DT))],2,as.numeric))
         DT=data.table(DT)
+    }
+    else if('PG.ProteinGroups' %in% colnames(DT)) {
+      print("Spectronaut input")
+      setnames(DT, 'PG.ProteinGroups', 'Protein_Group')
+      setnames(DT, 'PG.Genes', 'Genes')
+      DT=as.data.frame(DT)
+      # Use only Protein_Group and Genes
+      col_select=c('Protein_Group','Genes',grep('PG.Quantity',colnames(DT),value = T))
+      DT=DT[, col_select]
+      #as number
+      DT[,grep('PG.Quantity',colnames(DT))]=as.data.frame(apply(DT[,grep('PG.Quantity',colnames(DT))],2,as.numeric))
+      DT=data.table(DT)
     }
     else if('Peptide Sequence' %in% colnames(DT)) {
       print("FragPipe input")
