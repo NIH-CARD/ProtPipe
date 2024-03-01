@@ -25,6 +25,7 @@ install.packages(cran_deps)
 For performing QC and running differential abundance or enrichment analysis for typical mass spec data. The required inputs are
 - protein intensity estimates from DIA-NN or Spectronaut
 - experimental design matrix csv file
+
 Open your ternimal and cd the dir of Protpipe:
 ```bash
 Rscript src/basic_analysis.R \
@@ -36,6 +37,7 @@ Rscript src/basic_analysis.R \
 ## Affinity Purification Mass Spec analysis: `./protpipe.sh APMS`
 
 Similar to `basic` but for affinity purification mass spec. Requires the user to specify which protein was used for pulldown (`--ip`)
+
 Open your ternimal and cd the dir of Protpipe:
 ```bash
 Rscript src/APMS.R \
@@ -48,6 +50,7 @@ Rscript src/APMS.R \
 ## Immunopeptidome analysis: `./protpipe.sh immuno`
 
 Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing.
+
 Open your ternimal and cd the dir of Protpipe:
 ```bash
 Rscript src/immunopeptidome.R \
