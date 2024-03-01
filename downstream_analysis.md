@@ -27,7 +27,7 @@ For performing QC and running differential abundance or enrichment analysis for 
 - experimental design matrix csv file
 Open your ternimal and cd the dir of Protpipe:
 ```bash
-./protpipe.sh basic \
+Rscript src/basic_analysis.R \
     --pgfile EXAMPLES/DIFF_ABUNDANCE/iPSC.csv \
     --design EXAMPLES/DIFF_ABUNDANCE/design_matrix_iPSC.csv \
     --out EXAMPLES/DIFF_ABUNDANCE/
@@ -38,7 +38,7 @@ Open your ternimal and cd the dir of Protpipe:
 Similar to `basic` but for affinity purification mass spec. Requires the user to specify which protein was used for pulldown (`--ip`)
 Open your ternimal and cd the dir of Protpipe:
 ```bash
-./protpipe.sh APMS \
+Rscript src/APMS.R \
     --pgfile EXAMPLES/APMS/APMS.csv \
     --design EXAMPLES/APMS/design_matrix_APMS.csv \
     --ip UNC13A \
@@ -50,7 +50,7 @@ Open your ternimal and cd the dir of Protpipe:
 Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing.
 Open your ternimal and cd the dir of Protpipe:
 ```bash
-./protpipe.sh immuno \
+Rscript src/immunopeptidome.R \
     --pepfile EXAMPLES/IMMUNOPEPTIDOME/combined_peptide.tsv \
     --out EXAMPLES/IMMUNOPEPTIDOME/ \
     --hla EXAMPLES/IMMUNOPEPTIDOME/HLA_typing.csv
