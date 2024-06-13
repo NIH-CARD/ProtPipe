@@ -378,7 +378,7 @@ get_PCs <- function(DT) {
   out$summary$percent=round(out$summary$percent*100, digits = 2)
   pca_df = as.data.frame(pca$x)[,1:5]
   pca_df$Sample=gsub('_[0-9]+$','',rownames(pca_df))
-  pca_df$Condition=gsub('_[0-9]+$','',rownames(pca_df))
+  pca_df$Condition=rownames(pca_df)
   out$components <- pca_df
   return(out)
 }
