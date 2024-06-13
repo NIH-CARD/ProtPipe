@@ -136,22 +136,13 @@ option_list = list(
         )
     ),
     make_option(
-      "--design",
-      default=NULL,  
-      help=paste(
-        'Comma- or tab-delimited, three-column text file specifying the experimental design.',
-        'File should contain headers. Header names do not matter; column order DOES matter.',
-        'Columns order: <sample_name> <condition> <control>',
-        sep=optparse_indent
-      )
-    ),
-    make_option(
       "--DE_method",
-      default=ttest,  
+      dest="DE_method",
+      default='ttest',
+      type='character',
       help=paste(
-        'Comma- or tab-delimited, three-column text file specifying the experimental design.',
-        'File should contain headers. Header names do not matter; column order DOES matter.',
-        'Columns order: <sample_name> <condition> <control>',
+        'ttest',
+        'limma',
         sep=optparse_indent
       )
     ),
@@ -198,16 +189,8 @@ option_list = list(
     )
 )
 
-usage_string <- "Rscript %prog --pgfile [filename] --design [filename] [other options] "
-opt <- parse_args(OptionParser(usage = usage_string, option_list))
+opt <- parse_args(OptionParser(option_list=option_list))
 
-source('src/functions.R')
-
-
-if(opt$dry) {
-    cat("INFO: Quitting due to --dry run\n")
-    quit(status=0)
-}
 
 if(! opt$normalize %in% c('shift','scale','none')) {
     cat("ERROR: --normalize must be 'shift' 'scale' or 'none'\n")
@@ -219,15 +202,13 @@ if (is.null(opt$pgfile) && is.null(opt$pepfile)) {
     badargs <- TRUE
 }
 
-if (badargs == TRUE) {
-    quit(status=1)
-}
-
+#### Source the function ###
+source('src/functions.R')
 #### PACKAGES ######################################################################################
 package_list = c('ggplot2', 'data.table', 'corrplot', 'umap', 
                  'magick', 'ggdendro', 'ecodist','ggbeeswarm',
                  'ggrepel', 'ggthemes', 'foreach','reshape2',
-                 'org.Hs.eg.db','clusterProfiler','pheatmap')
+                 'org.Hs.eg.db','clusterProfiler','pheatmap','limma')
 cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 
@@ -268,7 +249,7 @@ if (!is.null(opt$design)) {
 }
 
 
-###pgfile  
+###pgfile ############# 
 if (!is.null(opt$pgfile)) {
   #### IMPORT AND FORMAT DATA#########################################################################
   tryTo(paste0('INFO: Reading input file ', opt$pgfile),{
@@ -453,22 +434,38 @@ if (!is.null(opt$pgfile)) {
   
   #### DIFFERENTIAL INTENSITY########################################################################
   if (!is.null(opt$design)) {
-    tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
-      for (treatment in conditions) {
-        print(paste0(treatment, ' vs ', control, ' DE analysis'))
-        treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
-        if (length(treatment_sample_names)==0) {next}
-        control <- unique(design[condition == treatment, control])
-        control_sample_names <- colnames(dat)[colnames(dat) %like% control]
-        if (length(control_sample_names)==0) {next}
-        if(treatment != control) {
-          t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
-          ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
-          plot_volcano(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
-          enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
+    if (opt$DE_method == 'ttest') {
+      tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
+        for (treatment in conditions) {
+          print(paste0(treatment, ' vs ', control, ' DE analysis'))
+          treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
+          if (length(treatment_sample_names)==0) {next}
+          control <- unique(design[condition == treatment, control])
+          control_sample_names <- colnames(dat)[colnames(dat) %like% control]
+          if (length(control_sample_names)==0) {next}
+          if(treatment != control) {
+            t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
+            ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
+            plot_volcano(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
+            enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
+          }
         }
-      }
-    }, 'ERROR: failed!')
+      }, 'ERROR: failed!')
+      
+    }
+    else if (opt$DE_method == 'limma') {
+      Log2_dat=dat
+      Log2_dat=as.data.frame(Log2_dat)
+      Log2_dat[, 3:ncol(Log2_dat)]=log2(Log2_dat[, 3:ncol(Log2_dat)]+1)
+      
+      do_limma(Log2_DT = Log2_dat,
+               design_matrix = design,
+               DE_dir = DI_dir,
+               EA_dir=EA_dir,
+               lfc_threshold =opt$lfc_threshold,
+               fdr_threshold =opt$fdr_threshold,
+               enrich_pvalue = opt$enrich_pvalue )
+    }
   }
   
   #### HEATMAP ########################################################################
@@ -478,7 +475,7 @@ if (!is.null(opt$pgfile)) {
   }
 }
 
-##pepfile  
+##pepfile########  
 if (!is.null(opt$pepfile)) {
   #### IMPORT AND FORMAT DATA#########################################################################
   tryTo(paste0('INFO: Reading input file ', opt$pepfile),{
@@ -503,7 +500,7 @@ if (!is.null(opt$pepfile)) {
       for(i in opt$exclude) {
         dat[, (i) := NULL]
       }
-    }, paste0('ERROR: problem trying to load ', opt$pgfile, ', does it exist?'))
+    }, paste0('ERROR: problem trying to load ', opt$pepfile, ', does it exist?'))
   }
   
   #Converting to long format
@@ -663,22 +660,37 @@ if (!is.null(opt$pepfile)) {
   
   #### DIFFERENTIAL INTENSITY########################################################################
   if (!is.null(opt$design)) {
-    tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
-      for (treatment in conditions) {
-        print(paste0(treatment, ' vs ', control, ' DE analysis'))
-        treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
-        if (length(treatment_sample_names)==0) {next}
-        control <- unique(design[condition == treatment, control])
-        control_sample_names <- colnames(dat)[colnames(dat) %like% control]
-        if (length(control_sample_names)==0) {next}
-        if(treatment != control) {
-          t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
-          ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
-          plot_volcano(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
-          enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
+    if (opt$DE_method == 'ttest') {
+      tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
+        for (treatment in conditions) {
+          print(paste0(treatment, ' vs ', control, ' DE analysis'))
+          treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
+          if (length(treatment_sample_names)==0) {next}
+          control <- unique(design[condition == treatment, control])
+          control_sample_names <- colnames(dat)[colnames(dat) %like% control]
+          if (length(control_sample_names)==0) {next}
+          if(treatment != control) {
+            t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
+            ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
+            plot_volcano_pep(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
+            enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
+          }
         }
-      }
-    }, 'ERROR: failed!')
+      }, 'ERROR: failed!')
+    }else if (opt$DE_method == 'limma') {
+      Log2_dat=dat
+      Log2_dat=as.data.frame(Log2_dat)
+      Log2_dat[, 3:ncol(Log2_dat)]=log2(Log2_dat[, 3:ncol(Log2_dat)]+1)
+      
+      do_limma(Log2_DT = Log2_dat,
+               design_matrix = opt$design,
+               DE_dir = DI_dir,
+               lfc_threshold =opt$lfc_threshold,
+               fdr_threshold =opt$fdr_threshold,
+               enrich_pvalue = opt$enrich_pvalue )
+    }
+    
+    
   }
   
   #### HEATMAP ########################################################################
