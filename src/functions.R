@@ -125,22 +125,22 @@ melt_intensity_table <- function(DT) {
   return(DT.long)
 }
 
-plot_pg_counts <- function(DT.long, output_dir, output_filename) {
+plot_pg_counts <- function(DT.long, output_dir) {
   pgcounts <- DT.long[, .N, by=Sample]
+  pgcounts$Condition=as.factor(gsub('_[0-9]*','',pgcounts$Sample))
   # Order samples by ascending counts
-  ezwrite(pgcounts, QC_dir, 'protein_group_nonzero_counts.tsv')
-  plot_pg_counts(pgcounts, QC_dir, 'protein_group_nonzero_counts.pdf')
-  n_samples <- nrow(DT.long)
+  ezwrite(pgcounts, output_dir, 'protein_group_nonzero_counts.tsv')
+  n_samples <- nrow(pgcounts)
   if (n_samples > 20) {
-    p=ggplot(DT, aes(x=Sample, y=N)) +
-      geom_bar(stat="identity", fill="#67a9cf")+
+    p=ggplot(pgcounts, aes(x=Sample, y=N,fill=Condition)) +
+      geom_bar(stat="identity")+
       theme_classic()+
       labs(fill = "",x="",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))
   }
   if (n_samples <= 20) {
-    p=ggplot(DT, aes(x=Sample, y=N)) +
-      geom_bar(stat="identity", fill="#67a9cf")+
+    p=ggplot(pgcounts, aes(x=Sample, y=N,fill=Condition)) +
+      geom_bar(stat="identity")+
       theme_classic()+
       labs(fill = "",x="",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))+ 
@@ -148,10 +148,23 @@ plot_pg_counts <- function(DT.long, output_dir, output_filename) {
   }
   
   if (n_samples>50){
-    ggsave(plot = p,filename = paste0(output_dir, output_filename),width = n_samples/10,height = 6)
+    ggsave(plot = p,filename = paste0(output_dir, 'protein_group_nonzero_counts.pdf'),width = n_samples/10,height = 6)
   }else {
-    ggsave(plot = p,filename = paste0(output_dir, output_filename),width = 8,height = 6)
-    } 
+    ggsave(plot = p,filename = paste0(output_dir, 'protein_group_nonzero_counts.pdf'),width = 8,height = 6)
+  } 
+  # group with sd
+  summary_data <- pgcounts %>%
+    group_by(Condition) %>%
+    summarize(mean = mean(N), sd = sd(N)) %>%
+    arrange(Condition)
+  p=ggplot(summary_data, aes(x=as.factor(Condition), y=mean)) +
+    geom_bar(stat="identity",fill="#67a9cf", position=position_dodge())+
+    theme_classic()+
+    geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                  position=position_dodge(.9))+
+    labs(fill = "",x="",y='Number of Phospho-sites')
+  ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_nonzero_counts_Condition.pdf'),height=5,width = 4)
+  return(pgcounts)
   }
 
 plot_pep_counts <- function(DT, output_dir, output_filename) {

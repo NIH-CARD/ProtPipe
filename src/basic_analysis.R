@@ -205,7 +205,7 @@ if (is.null(opt$pgfile) && is.null(opt$pepfile)) {
 #### Source the function ###
 source('src/functions.R')
 #### PACKAGES ######################################################################################
-package_list = c('ggplot2', 'data.table', 'corrplot', 'umap', 
+package_list = c('ggplot2', 'data.table','dplyr' ,'corrplot', 'umap', 
                  'magick', 'ggdendro', 'ecodist','ggbeeswarm',
                  'ggrepel', 'ggthemes', 'foreach','reshape2',
                  'org.Hs.eg.db','clusterProfiler','pheatmap','limma')
@@ -223,30 +223,6 @@ options(warn = defaultW)    # Turn warnings back on
 opt$lfc_threshold <- log(opt$foldchange, base=2)
 cat(paste0('INFO: LFC threshold of log2(Intensity) > ', opt$lfc_threshold, '\n'))
 cat(paste0('INFO: FDR threshold of ', opt$fdr_threshold, '\n'))
-
-#### MAKE DIRS #####################################################################################
-
-QC_dir <- paste0(opt$outdir, '/QC/')
-if(! dir.exists(QC_dir)){
-    dir.create(QC_dir, recursive = T)
-}
-
-cluster_dir <- paste0(opt$outdir, '/Clustering/')
-if(! dir.exists(cluster_dir)){
-    dir.create(cluster_dir, recursive = T)
-}
-
-if (!is.null(opt$design)) {
-  DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
-  if(! dir.exists(DI_dir)){
-    dir.create(DI_dir, recursive = T)
-  }
-  
-  EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
-  if(! dir.exists(EA_dir)){
-    dir.create(EA_dir, recursive = T)
-  }
-}
 
 
 ###pgfile ############# 
@@ -291,7 +267,10 @@ if (!is.null(opt$pgfile)) {
   }, 'ERROR: failed!')
   
   #### QC ############################################################################################
-  
+  QC_dir <- paste0(opt$outdir, '/QC/')
+  if(! dir.exists(QC_dir)){
+    dir.create(QC_dir, recursive = T)
+  }
   ## Plotting intensity distribution
   
   tryTo('INFO: Plotting intensity distribution',{
@@ -333,11 +312,10 @@ if (!is.null(opt$pgfile)) {
   # pgcounts represents the distribution of Protein Groups with Intensity > 0
   # Visually, it is represented as a bar plot with x=sample, y=N, ordered by descending N
   # Get counts of [N=unique gene groups with `Intensity` > 0]
-  tryTo('INFO: Tabulating protein group counts',{
-    pgcounts <- dat.long[, .N, by=Sample]
-    # Order samples by ascending counts
-    ezwrite(pgcounts, QC_dir, 'protein_group_nonzero_counts.tsv')
-    plot_pg_counts(pgcounts, QC_dir, 'protein_group_nonzero_counts.pdf')
+  tryTo('INFO: Plotting protein group counts',{
+    pgcounts=plot_pg_counts(DT.long = dat.long,
+                   output_dir = QC_dir
+                  )
   }, 'ERROR: failed!')
   
   tryTo('INFO: Plotting sample intensity correlations',{
@@ -410,6 +388,10 @@ if (!is.null(opt$pgfile)) {
   }, 'ERROR: failed!')
   
   #### CLUSTERING ####################################################################################
+  cluster_dir <- paste0(opt$outdir, '/Clustering/')
+  if(! dir.exists(cluster_dir)){
+    dir.create(cluster_dir, recursive = T)
+  }
   # PCA
   tryTo('INFO: running PCA and plotting first two components',{
     pca <- get_PCs(dat)
@@ -435,6 +417,15 @@ if (!is.null(opt$pgfile)) {
   #### DIFFERENTIAL INTENSITY########################################################################
   if (!is.null(opt$design)) {
     if (opt$DE_method == 'ttest') {
+      DI_dir <- paste0(opt$outdir, '/ttest/Differential_Intensity/')
+      if(! dir.exists(DI_dir)){
+        dir.create(DI_dir, recursive = T)
+      }
+      
+      EA_dir <- paste0(opt$outdir, '/ttest/Enrichiment_Analysis/')
+      if(! dir.exists(EA_dir)){
+        dir.create(EA_dir, recursive = T)
+      }
       tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
         for (treatment in conditions) {
           print(paste0(treatment, ' vs ', control, ' DE analysis'))
@@ -454,6 +445,15 @@ if (!is.null(opt$pgfile)) {
       
     }
     else if (opt$DE_method == 'limma') {
+      DI_dir <- paste0(opt$outdir, '/limma/Differential_Intensity/')
+      if(! dir.exists(DI_dir)){
+        dir.create(DI_dir, recursive = T)
+      }
+      
+      EA_dir <- paste0(opt$outdir, '/limma/Enrichiment_Analysis/')
+      if(! dir.exists(EA_dir)){
+        dir.create(EA_dir, recursive = T)
+      }
       Log2_dat=dat
       Log2_dat=as.data.frame(Log2_dat)
       Log2_dat[, 3:ncol(Log2_dat)]=log2(Log2_dat[, 3:ncol(Log2_dat)]+1)
@@ -517,7 +517,10 @@ if (!is.null(opt$pepfile)) {
   }, 'ERROR: failed!')
   
   #### QC ############################################################################################
-  
+  QC_dir <- paste0(opt$outdir, '/QC/')
+  if(! dir.exists(QC_dir)){
+    dir.create(QC_dir, recursive = T)
+  }
   ## Plotting intensity distribution
   
   tryTo('INFO: Plotting intensity distribution',{
@@ -636,6 +639,11 @@ if (!is.null(opt$pepfile)) {
   }, 'ERROR: failed!')
   
   #### CLUSTERING ####################################################################################
+  cluster_dir <- paste0(opt$outdir, '/Clustering/')
+  if(! dir.exists(cluster_dir)){
+    dir.create(cluster_dir, recursive = T)
+  }
+  
   # PCA
   tryTo('INFO: running PCA and plotting first two components',{
     pca <- get_PCs(dat)
@@ -661,6 +669,15 @@ if (!is.null(opt$pepfile)) {
   #### DIFFERENTIAL INTENSITY########################################################################
   if (!is.null(opt$design)) {
     if (opt$DE_method == 'ttest') {
+      DI_dir <- paste0(opt$outdir, '/ttest/Differential_Intensity/')
+      if(! dir.exists(DI_dir)){
+        dir.create(DI_dir, recursive = T)
+      }
+      
+      EA_dir <- paste0(opt$outdir, '/ttest/Enrichiment_Analysis/')
+      if(! dir.exists(EA_dir)){
+        dir.create(EA_dir, recursive = T)
+      }
       tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
         for (treatment in conditions) {
           print(paste0(treatment, ' vs ', control, ' DE analysis'))
@@ -677,7 +694,17 @@ if (!is.null(opt$pepfile)) {
           }
         }
       }, 'ERROR: failed!')
-    }else if (opt$DE_method == 'limma') {
+    }
+    else if (opt$DE_method == 'limma') {
+      DI_dir <- paste0(opt$outdir, '/limma/Differential_Intensity/')
+      if(! dir.exists(DI_dir)){
+        dir.create(DI_dir, recursive = T)
+      }
+      
+      EA_dir <- paste0(opt$outdir, '/limma/Enrichiment_Analysis/')
+      if(! dir.exists(EA_dir)){
+        dir.create(EA_dir, recursive = T)
+      }
       Log2_dat=dat
       Log2_dat=as.data.frame(Log2_dat)
       Log2_dat[, 3:ncol(Log2_dat)]=log2(Log2_dat[, 3:ncol(Log2_dat)]+1)
@@ -700,4 +727,6 @@ if (!is.null(opt$pepfile)) {
   }
   
 }
+
+##Done######## 
 quit()
