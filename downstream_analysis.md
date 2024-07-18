@@ -10,7 +10,7 @@ Opean your R and install the dependencies:
 
 ```R
 bioc_deps <- c("clusterProfiler", "org.Hs.eg.db", "limma" )
-cran_deps <- c("corrplot", "data.table", "ggplot2", "umap","ggbeeswarm","ggrepel",'ggdendro', 
+cran_deps <- c("optparse","corrplot", "data.table", "ggplot2", "umap","ggbeeswarm","ggrepel",'ggdendro', 
                "pheatmap", "reshape2", "rlang", "magick",'ecodist',
                "ggthemes", "dplyr", "tidyr", "foreach") 
 
