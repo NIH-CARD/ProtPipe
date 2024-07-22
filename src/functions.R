@@ -1,5 +1,5 @@
 
-#### FUNCTIONS #####################################################################################
+## FUNCTIONS #####################################################################################
 
 tryTo <- function(infomsg='', cmd,  errormsg='ERROR: failed!') {
     # tryTo is a simple tryCatch wrapper, taking a command + message.
@@ -122,6 +122,7 @@ melt_intensity_table <- function(DT) {
                   variable.name='Sample',
                   value.name='Intensity')
   DT.long=data.table(DT.long)
+  DT.long=DT.long[DT.long$Intensity>0,]
   return(DT.long)
 }
 
@@ -276,7 +277,7 @@ scale_normalize_intensity <- function(DT.original) {
     return(DT[])
 }
 
-plot_pg_intensities <- function(DT, output_dir, output_filename, plot_title) {
+plot_pg_intensities <- function(DT, output_dir, output_filename) {
   DT=data.table(DT)
     n_samples <- length(unique(DT$Sample))
     g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
@@ -294,7 +295,7 @@ plot_pg_intensities <- function(DT, output_dir, output_filename, plot_title) {
     }
 }
 
-plot_pep_intensities <- function(DT, output_dir, output_filename, plot_title) {
+plot_pep_intensities <- function(DT, output_dir, output_filename) {
   n_samples <- length(unique(DT$Sample))
   g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
     geom_violin(trim=FALSE, fill="steelblue")+
@@ -922,7 +923,7 @@ plot_heatmap_subset <- function(DT_heatmap,gene) {
   
 }
 
-#####PPI##########
+#PPI##########
 ##APMS ttest
 do_t_test_APMS <- function(DT, treatment_samples, control_samples) {
   
@@ -1056,7 +1057,7 @@ plot_PPI_ven <- function(protein,t_test,lfc_threshold, fdr_threshold, output_dir
   
 }
 
-####mhcflurry########
+#mhcflurry########
 get_mhcflurry_input=function(hla_typing,dat.long,sample,MHC_dir){
     print(paste0("Generate the MHCflurry input file of ",sample))
     sample_allele=hla_typing[hla_typing$sample_name==sample,]
@@ -1164,7 +1165,7 @@ plot_mhc_affinity <- function(sample) {
   
 }
 
-####pSILAC functions#################################
+#pSILAC functions#################################
 #format data
 psilac_standardize_format = function(DT) {
   if ('PG.ProteinGroups' %in% colnames(DT)) {
@@ -1264,7 +1265,7 @@ plot_silac_pep_intensity = function(DT.long, output_dir,height,width) {
 
 
 
-#####phospho functions#################################
+#phospho functions#################################
 ##format data
 phospho_standardize_format = function(DT) {
   DT=as.data.frame(DT)
@@ -1651,3 +1652,120 @@ phospho_limma = function(Log2_DT, design_matrix,DE_dir,lfc_threshold,fdr_thresho
 ###limma plot_volcano
 
 ###limma pathway analysis
+
+
+
+#Soma functions##########
+##format data
+soma_all_output=function(DT,output_dir,out_name){
+  anno=getAnalyteInfo(DT)
+  DT_dat <- DT %>% 
+    filter(grepl("Sample", SampleType, ignore.case = TRUE)) %>% 
+    {rownames(.) <- .$SampleId; .} %>% 
+    select(matches("seq\\.", ignore.case = TRUE)) %>% 
+    t()
+  
+  Buffer_mean <- DT %>%
+    filter(SampleType == "Buffer") %>%
+    select(matches("seq\\.", ignore.case = TRUE)) %>%
+    summarise(across(everything(), ~ mean(.x, na.rm = TRUE))) %>%
+    t() %>%
+    as.data.frame()%>% 
+    {colnames(.) <- 'Buffer'; .}
+  
+  Calibrator_mean <- DT %>%
+    filter(SampleType == "Calibrator") %>%
+    select(matches("seq\\.", ignore.case = TRUE)) %>%
+    summarise(across(everything(), ~ mean(.x, na.rm = TRUE))) %>%
+    t() %>%
+    as.data.frame()%>% 
+    {colnames(.) <- 'Calibrator'; .}
+  
+  DT_combined <- cbind(Buffer_mean, Calibrator_mean, DT_dat)
+  DT_out=merge(anno[,grep('AptName|UniProt|EntrezGeneSymbol',colnames(anno))], DT_combined,by.x='AptName',by.y=0,all=T)
+  DT_out=DT_out %>%
+    filter(UniProt != "")%>%
+    filter(EntrezGeneSymbol != "") %>%
+    select(-AptName)%>%
+    rename(Protein_Group= UniProt)%>%
+    rename(Genes= EntrezGeneSymbol)
+  write.csv(DT_out,paste0(output_dir,'/','Soma_output.csv'),row.names = F)
+  cat(paste0('   -> ', output_dir,'/','Soma_output.csv', '\n'))
+  return(DT_out)
+}
+
+soma_sample_out=function(DT){
+  anno=getAnalyteInfo(DT)
+  DT_dat=DT%>%
+    filter(grepl("Sample", SampleType, ignore.case = TRUE))
+  rownames(DT_dat)=DT_dat$SampleId
+  DT_dat=DT_dat%>%
+    select(matches("seq\\.", ignore.case = TRUE))%>%
+    t()
+  DT_dat=merge(anno[,grep('AptName|UniProt|EntrezGeneSymbol',colnames(anno))], DT_dat,by.x='AptName',by.y=0,all=T)
+  DT_dat=DT_dat %>%
+    filter(UniProt != "")%>%
+    filter(EntrezGeneSymbol != "") %>%
+    select(-AptName)%>%
+    rename(Protein_Group= UniProt)%>%
+    rename(Genes= EntrezGeneSymbol)
+  return(DT_dat)
+}
+
+Buffer_filter=function(DT,output_dir){
+  DT_filter <- DT %>%
+    mutate(across(
+      .cols = -c(Protein_Group, Genes, Buffer,Calibrator),  # Exclude PG_group, genes, and Buffer
+      .fns = ~ ifelse(. < Buffer, NA, .)  # Apply the condition
+    ))
+  write.csv(DT_filter,paste0(output_dir,'/','Soma_fillter_output.csv'),row.names = F)
+  cat(paste0('   -> ', output_dir,'/','Soma_fillter_output.csv', '\n'))
+  return(DT_filter)
+}
+
+##soma pg count plot sd
+soma_plot_counts = function(counts,condition_file, output_dir) {
+  counts=merge(counts,condition_file,by.x='Sample',by.y='SampleId') 
+  #sd
+  summary_data <- counts %>%
+    group_by(SampleGroup) %>%
+    summarize(mean = mean(N), sd = sd(N)) %>%
+    arrange(SampleGroup)%>%
+     na.omit()
+   p=ggplot(summary_data, aes(x=as.factor(SampleGroup), y=mean)) +
+     geom_bar(stat="identity",fill="#67a9cf", position=position_dodge())+
+     theme_classic()+
+     geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                position=position_dodge(.9))+
+     labs(fill = "",x="",y='Number of Protein Group')
+  ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer_group_sd','.pdf'),height=5,width = 4)
+}
+##soma pca plot
+soma_get_PCs=function(DT,condition_file){
+  out <- list()
+  ##cluster data(na=0)
+  cluster_data=DT[,-c(1:2)]
+  cluster_data[is.na(cluster_data)]=0
+  cluster_data=cluster_data[which(rowSums(cluster_data)>0),]
+  log2_cluster_data=log2(cluster_data+1)
+  ##PCA and plot
+  pca_data=t(log2_cluster_data)
+  pca=prcomp(pca_data, center = TRUE, scale. = TRUE)#pca,remember if you use the sample to do the pca,you need to transpose
+  out$summary <- as.data.table(t(summary(pca)$importance), keep.rownames=T)
+  setnames(out$summary, c('component','stdv','percent','cumulative'))
+  out$summary$percent=round(out$summary$percent*100, digits = 2)
+  pca_df = as.data.frame(pca$x)[,1:5]
+  pca_df$Sample=rownames(pca_df)
+  pca_df$Condition=gsub('_[0-9]+$','',rownames(pca_df))
+  pca_df=merge(pca_df,condition_file,by.x='Sample',by.y='SampleId')
+  out$components <- pca_df
+  return(out)
+}
+soma_plot_PCs <- function(PCA, output_dir, output_filename) {
+  p <- ggplot(PCA$components, aes(x = PC1, y = PC2, color = SampleGroup)) +
+    geom_point(size=4) +
+    xlab(paste0("PC1","(",PCA$summary$percent[1],"%)")) +
+    ylab(paste0("PC2","(",PCA$summary$percent[2],"%)")) +
+    theme_classic()
+  ggsave(p,filename=paste0(output_dir, output_filename), height = 4,width = 5)
+}
