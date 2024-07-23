@@ -606,24 +606,24 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
     dir.create(dir,recursive = T)
   }
   
-  DT <- data.table(DT.original)
-  DT[, 'Group' := 'Others']
-  DT[log2FC >= lfc_threshold, 'Group' := 'UP']
-  DT[log2FC <= -lfc_threshold, 'Group' := 'DOWN']
-  DT[p.adj >= fdr_threshold, 'Group' := 'Others']
+  DT <- DT.original %>%
+    mutate(Group = 'Others') %>%
+    mutate(Group = ifelse(log2FC >= lfc_threshold, 'UP', Group)) %>%
+    mutate(Group = ifelse(log2FC <= -lfc_threshold, 'DOWN', Group)) %>%
+    mutate(Group = ifelse(p.adj >= fdr_threshold, 'Others', Group))%>%
+    data.frame()
   
   ##ENTREZID names########
   entrizid = data.frame(bitr(DT$Genes, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db",drop=T))
-  
-  DT <- merge(DT,entrizid,by.x='Genes',by.y='SYMBOL')
-  DT <- na.omit(DT)
-  DT <- DT[order(DT$log2FC,decreasing = T),]
+  DT <- merge(DT,entrizid,by.x='Genes',by.y='SYMBOL') %>%
+    na.omit() %>%
+    arrange(desc(log2FC))
   all_gene_vector=DT$log2FC
   names(all_gene_vector)=DT$ENTREZID
+  
   ## up and down regulated genes 
   up_genes=DT[which(DT$log2FC>=lfc_threshold&DT$p.adj<=fdr_threshold),]
   down_genes=DT[which(DT$log2FC<=(-lfc_threshold)&DT$p.adj<=fdr_threshold),]
-  ## ------- Enrichment -------
   print('Processing up-gene enrichment analysis')
   if (nrow(up_genes)>0){
     enrichAll(gene_id=up_genes$ENTREZID, all_gene_vector=all_gene_vector, MSigDb_gmt_dir = MSigDb_gmt_dir, out_prefix = 'up',outdir=dir,width = 12,height = 8,enrich_pvalue=enrich_pvalue)
@@ -637,14 +637,33 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
 enrichAll = function(gene_id, all_gene_vector, outdir='.', MSigDb_gmt_dir = NULL, out_prefix = NULL, width=12, height=8, enrich_pvalue=1){
   
   all_gene_vector <- na.omit(all_gene_vector)
-  
   if (!dir.exists(outdir)){
     dir.create(outdir,recursive = T)
   }
-  
   enrich_res = data.frame()
   ### GO 
-  print('Processing GO')
+  print('Processing GO')GO <- enrichGO(gene          = gene_id,
+                                       universe      = names(all_gene_vector),
+                                       OrgDb         = 'org.Hs.eg.db',
+                                       ont           = "ALL",
+                                       pAdjustMethod = "BH",
+                                       pvalueCutoff  = enrich_pvalue,
+                                       qvalueCutoff  = enrich_pvalue,
+                                       readable      = TRUE)
+  GO_res=GO@result
+  if (nrow(GO) > 0) {
+    p=dotplot(GO, showCategory=10,split='ONTOLOGY')+
+      facet_grid(ONTOLOGY~.,scales = "free",space = "free")
+    ggsave(plot = p,
+           filename = file.path(outdir,paste0(out_prefix,'_GO_res_dotplot.pdf')),
+           width=5,height=10)
+    p=barplot(GO, showCategory=10,split='ONTOLOGY')+
+      facet_grid(ONTOLOGY~.,scales = "free",space = "free")
+    ggsave(plot = p,
+           filename = file.path(outdir,paste0(out_prefix,'_GO_res_barplot.pdf')),
+           width=5,height=10)
+  } else {
+    stop("No enriched pathways found in the GO analysis")}
   # GO CC
   print('Processing GO CC')
   ego_cc <- enrichGO(gene          = gene_id,
@@ -655,20 +674,14 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', MSigDb_gmt_dir = NULL
                      pvalueCutoff  = enrich_pvalue,
                      qvalueCutoff  = enrich_pvalue,
                      readable      = TRUE)
-  if (is.null(ego_cc)) {
-    print('NO GO CC')
-  } else {head(ego_cc)
-    tmp_df=ego_cc@result
-    tmp_df$group='go_cc'
-    enrich_res=rbind(enrich_res,tmp_df)
-    
     if (nrow(ego_cc)>0){
-      barplot(ego_cc, showCategory=20,label_format = 100)+
-        scale_fill_gradient(low = "#ef8a62", high = "#67a9cf", na.value = NA)
-      ggsave(file.path(outdir,paste0(out_prefix,'.go_cc.pdf')),width = width,height=height)
+      barplot(ego_cc, showCategory=20,label_format = 100)
+      ggsave(file.path(outdir,paste0(out_prefix,'_GO_CC_barplot.pdf')),width = width,height=height)
+      dotplot(ego_cc, showCategory=20,label_format = 100)
+      ggsave(file.path(outdir,paste0(out_prefix,'_GO_CC_dotplot.pdf')),width = width,height=height)
+    }else {
+      print('NO GO CC')
     }
-    
-  }
   # GO BP
   print('Processing GO BP')
   ego_bp <- enrichGO(gene          = gene_id,
@@ -679,20 +692,14 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', MSigDb_gmt_dir = NULL
                      pvalueCutoff  = enrich_pvalue,
                      qvalueCutoff  = enrich_pvalue,
                      readable      = TRUE)
-  if (is.null(ego_bp)) {
-    print('NO GO BP')
-  }else {
-    head(ego_bp)
-    tmp_df=ego_bp@result
-    tmp_df$group='go_bp'
-    enrich_res=rbind(enrich_res,tmp_df)
     if (nrow(ego_bp)>0){
-      barplot(ego_bp, showCategory=20,label_format = 100)+
-        scale_fill_gradient(low = "#ef8a62", high = "#67a9cf", na.value = NA)
-      ggsave(file.path(outdir,paste0(out_prefix,'.go_bp.pdf')),width=width,height=height)
-    }
-  }
-  
+      barplot(ego_bp, showCategory=20,label_format = 100)
+      ggsave(file.path(outdir,paste0(out_prefix,'_GO_BP_barplot.pdf')),width=width,height=height)
+      dotplot(ego_bp, showCategory=20,label_format = 100)
+      ggsave(file.path(outdir,paste0(out_prefix,'_GO_BP_dotplot.pdf')),width=width,height=height)
+    }else {
+      print('NO GO BP')
+      }
   # GO MF
   print('Processing GO MF')
   ego_mf <- enrichGO(gene          = gene_id,
@@ -703,38 +710,36 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', MSigDb_gmt_dir = NULL
                      pvalueCutoff  = enrich_pvalue,
                      qvalueCutoff  = enrich_pvalue,
                      readable      = TRUE)
-  if (is.null(ego_mf)) {
-    print('NO GO MF')
-  }else {
-    head(ego_mf)
-    tmp_df=ego_mf@result
-    tmp_df$group='go_mf'
-    enrich_res=rbind(enrich_res,tmp_df)
-    
     if (nrow(ego_mf)>0){
-      barplot(ego_mf, showCategory=20,label_format = 100)+
-        scale_fill_gradient(low = "#ef8a62", high = "#67a9cf", na.value = NA)
-      ggsave(file.path(outdir,paste0(out_prefix,'.go_mf.pdf')),width=width,height=height)
-    }
-  }
+      barplot(ego_mf, showCategory=20,label_format = 100)
+      ggsave(file.path(outdir,paste0(out_prefix,'_GO_MF_barplot.pdf')),width=width,height=height)
+      dotplot(ego_mf, showCategory=20,label_format = 100)
+      ggsave(file.path(outdir,paste0(out_prefix,'_GO_MF_dotplot.pdf')),width=width,height=height)
+    } else {
+      print('NO GO MF')
+      }
   
-  ### KEGG
-  #print('Processing KEGG')
-  #kk <- enrichKEGG(gene         = gene_id,
-  #                 organism     = 'hsa',
-  #                universe      = names(all_gene_vector),
-  #                pvalueCutoff = enrich_pvalue)
-  #head(kk)
-  #tmp_df=kk@result
-  #tmp_df$group='kegg'
-  #enrich_res=rbind(enrich_res,tmp_df)
-  
-  #if (nrow(kk)>0){
-  #  barplot(kk, showCategory=20)
-  #  ggsave(file.path(outdir,paste0(out_prefix,'.kegg.pdf')),width=width,height=height)
-  # }
+  # KEGG
+  print('Processing KEGG')
+  KEGG <- enrichKEGG(gene         = gene_id,
+                     organism     = 'hsa',
+                     universe      = names(all_gene_vector),
+                     pvalueCutoff = enrich_pvalue)
+  KEGG=setReadable(KEGG, OrgDb='org.Hs.eg.db', keyType = "ENTREZID")
+  KEGG_res=KEGG@result
+  if (nrow(KEGG) > 0) {
+    dotplot(KEGG, showCategory=20)
+    ggsave(file.path(outdir,paste0(out_prefix,'_KEGG_dotplot.pdf')),width=width,height=height)
+    barplot(KEGG, showCategory=20)
+    ggsave(file.path(outdir,paste0(out_prefix,'_KEGG_barplot.pdf')),width=width,height=height)
+  } else {
+    stop("No enriched pathways found in the KEGG object.")}
   print('Save enrichment analysis results')
-  write.table(enrich_res,file.path(outdir,paste0(out_prefix,'.enrich_res.txt')),quote = F,sep = '\t')
+  GO_res$category=''
+  GO_res$subcategory=''
+  KEGG_res$ONTOLOGY="KEGG"
+  enrich_res=rbind(GO_res,KEGG_res)
+  ezwrite(enrich_res, outdir, paste0(out_prefix,'_enrich_res.tsv'))
 }
 
 ##limma
