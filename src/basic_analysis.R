@@ -437,6 +437,9 @@ if ((ncol(dat)-3)>opt$neighbors) {
 
 #### DIFFERENTIAL INTENSITY########################################################################
 if (!is.null(opt$design)) {
+  if (!is.null(opt$labelgene)) {
+    opt$labelgene=fread(opt$labelgene)
+  }
   tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
     for (treatment in conditions) {
       print(paste0(treatment, ' vs ', control, ' DE analysis'))
