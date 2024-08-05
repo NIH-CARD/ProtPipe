@@ -58,10 +58,9 @@ option_list = list(
         "--normalize",
         default='none',
         type='character',
-        help=paste(
-            'shift: adjust sample intensities to match global median by adding a constant',
-            'scale: adjust sample intensities to match global median by multiplicative scaling',
-            'none: do not normalize',
+        help=paste('median:adjust sample intensities to match global median',
+                   'mean:adjust sample intensities to match global mean',
+                   'none: do not normalize',
             sep=optparse_indent
         )
     ),
@@ -104,9 +103,9 @@ option_list = list(
         )
     ),
     make_option(
-        "--foldchange",
-        dest = 'foldchange',
-        default=2,
+        "--lfc_threshold",
+        dest = 'lfc_threshold',
+        default=1,
         type='numeric',
         help=paste(
             'Minimum LINEAR fold change [NOT log, as log base can be modified] for labeling',
@@ -192,8 +191,8 @@ option_list = list(
 opt <- parse_args(OptionParser(option_list=option_list))
 
 
-if(! opt$normalize %in% c('shift','scale','none')) {
-    cat("ERROR: --normalize must be 'shift' 'scale' or 'none'\n")
+if(! opt$normalize %in% c('none','mean','median')) {
+    cat("ERROR: --normalize must be 'mean','median', or 'none'\n")
     badargs <- TRUE
 }
 
@@ -208,7 +207,7 @@ source('src/functions.R')
 package_list = c('ggplot2', 'data.table','dplyr' ,'corrplot', 'umap', 
                  'magick', 'ggdendro', 'ecodist','ggbeeswarm',
                  'ggrepel', 'ggthemes', 'foreach','reshape2',
-                 'org.Hs.eg.db','clusterProfiler','pheatmap','limma')
+                 'org.Hs.eg.db','clusterProfiler','pheatmap','limma','DOSE')
 cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 
@@ -219,10 +218,6 @@ if(all((lapply(package_list, require, character.only=TRUE)))) {
     cat("ERROR: One or more packages not available. Are you running this within the container?\n")
 }
 options(warn = defaultW)    # Turn warnings back on
-
-opt$lfc_threshold <- log(opt$foldchange, base=2)
-cat(paste0('INFO: LFC threshold of log2(Intensity) > ', opt$lfc_threshold, '\n'))
-cat(paste0('INFO: FDR threshold of ', opt$fdr_threshold, '\n'))
 
 
 ###pgfile ############# 
@@ -274,7 +269,7 @@ if (!is.null(opt$pgfile)) {
   ## Plotting intensity distribution
   
   tryTo('INFO: Plotting intensity distribution',{
-    plot_pg_intensities(dat.long, QC_dir, 'intensities.pdf', plot_title='Un-normalized intensities')
+    plot_pg_intensities(dat.long, QC_dir, 'intensities.pdf')
     # plot_density(dat.long, QC_dir, 'intensity_density.pdf')
     # plot_density(dat.long.normalized, QC_dir, 'intensity_density_normalized.pdf')
   }, 'ERROR: failed!')
@@ -283,28 +278,28 @@ if (!is.null(opt$pgfile)) {
   if (opt$normalize == 'none') {
     cat('Skipping median-normalization due to --normalize none\n')
   } else {
-    if (opt$normalize == 'shift') {
-      tryTo('INFO: Calculating median-normalized intensities by shifting sample intensities',{
-        dat.long <- shift_normalize_intensity(dat.long)
+    if (opt$normalize == 'mean') {
+      tryTo('INFO: Global Normalization by Mean',{
+        dat.long <- mean_normalize_intensity(dat.long)
       }, 'ERROR: failed!')
       
-      tryTo('INFO: Plotting shift-normalized intensity distributions',{
-        plot_pg_intensities(dat.long, QC_dir, 'intensities_shift_normalized.pdf', plot_title='shift-normalized intensities')
+      tryTo('INFO: Plotting mean-normalized intensity distributions',{
+        plot_pg_intensities(dat.long, QC_dir, 'intensities_mean_normalized.pdf')
       }, 'ERROR: failed!')
-    } else if (opt$normalize == 'scale') {
+    } else if (opt$normalize == 'median') {
       
-      tryTo('INFO: Calculating median-normalized intensities by scaling sample intensities',{
-        dat.long <- scale_normalize_intensity(dat.long)
+      tryTo('INFO: Global Normalization by Median',{
+        dat.long <- median_normalize_intensity(dat.long)
       }, 'ERROR: failed!')
       
-      tryTo('INFO: Plotting scale-normalized intensity distributions',{
-        plot_pg_intensities(dat.long, QC_dir, 'intensities_scale_normalized.pdf', plot_title='scale-normalized intensities')
+      tryTo('INFO: Plotting median-normalized intensity distributions',{
+        plot_pg_intensities(dat.long, QC_dir, 'intensities_median_normalized.pdf')
       }, 'ERROR: failed!')
     }
     
     tryTo('INFO: Re-generating wide table with normalized intensities',{
       original_colorder <- colnames(dat)
-      dat <- dcast(dat.long, Protein_Group+Genes+First_Protein_Description~Sample, value.var='Intensity')
+      dat <- dcast(dat.long, Protein_Group+Genes~Sample, value.var='Intensity')
       setcolorder(dat, original_colorder)
     }, 'ERROR: failed!')
   }
@@ -435,9 +430,15 @@ if (!is.null(opt$pgfile)) {
           control_sample_names <- colnames(dat)[colnames(dat) %like% control]
           if (length(control_sample_names)==0) {next}
           if(treatment != control) {
-            t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
-            ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
-            plot_volcano(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
+            t_test <- do_t_test(DT = dat, treatment_samples = treatment_sample_names,control_samples =  control_sample_names)
+            ezwrite(t_test[order(adj.P.Val)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
+            plot_volcano(DT.original = t_test, 
+                         out_dir = DI_dir,
+                         output_filename = paste0(treatment, '_vs_', control, '_ttest'),
+                         label_col = 'Genes',
+                         lfc_threshold = opt$lfc_threshold,
+                         fdr_threshold = opt$fdr_threshold,
+                         labelgene =  opt$labelgene)
             enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
           }
         }
@@ -524,7 +525,7 @@ if (!is.null(opt$pepfile)) {
   ## Plotting intensity distribution
   
   tryTo('INFO: Plotting intensity distribution',{
-    plot_pep_intensities(dat.long, QC_dir, 'intensities.pdf', plot_title='Un-normalized intensities')
+    plot_pep_intensities(dat.long, QC_dir, 'intensities.pdf')
     # plot_density(dat.long, QC_dir, 'intensity_density.pdf')
     # plot_density(dat.long.normalized, QC_dir, 'intensity_density_normalized.pdf')
   }, 'ERROR: failed!')
@@ -539,7 +540,7 @@ if (!is.null(opt$pepfile)) {
       }, 'ERROR: failed!')
       
       tryTo('INFO: Plotting shift-normalized intensity distributions',{
-        plot_pg_intensities(dat.long, QC_dir, 'intensities_shift_normalized.pdf', plot_title='shift-normalized intensities')
+        plot_pg_intensities(dat.long, QC_dir, 'intensities_shift_normalized.pdf')
       }, 'ERROR: failed!')
     } else if (opt$normalize == 'scale') {
       
@@ -548,7 +549,7 @@ if (!is.null(opt$pepfile)) {
       }, 'ERROR: failed!')
       
       tryTo('INFO: Plotting scale-normalized intensity distributions',{
-        plot_pg_intensities(dat.long, QC_dir, 'intensities_scale_normalized.pdf', plot_title='scale-normalized intensities')
+        plot_pg_intensities(dat.long, QC_dir, 'intensities_scale_normalized.pdf')
       }, 'ERROR: failed!')
     }
     
@@ -689,7 +690,13 @@ if (!is.null(opt$pepfile)) {
           if(treatment != control) {
             t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
             ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
-            plot_volcano_pep(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
+            plot_volcano(DT.original = t_test,
+                         out_dir = DI_dir,
+                         output_filename = paste0(treatment, '_vs_', control, '_ttest'),
+                         label_col = 'Peptide_Sequence',
+                         lfc_threshold =opt$lfc_threshold, 
+                         fdr_threshold = opt$fdr_threshold, 
+                         labelgene =  opt$labelgene)
             enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
           }
         }

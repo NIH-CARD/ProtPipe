@@ -3,21 +3,6 @@
 #Ziyi Li
 #2024-05-10
 ########################
-
-#package and source code
-package_list = c('SomaDataIO', 'dplyr', 'data.table', 
-                 'reshape2','ggplot2','umap','ggdendro')
-cat("INFO: Loading required packages\n      ")
-cat(paste(package_list, collapse='\n      ')); cat('\n')
-defaultW=getOption("warn"); options(warn = -1)   # Temporarily disable warnings for quiet loading
-if(all((lapply(package_list, require, character.only=TRUE)))) {
-  cat("INFO: All packages successfully loaded\n")
-} else {
-  cat("ERROR: One or more packages not available. Are you running this within the container?\n")
-  quit()
-}
-source('src/soma_function.R')
-#
 #### ARG PARSING ###################################################################################
 library(optparse)
 pwd = getwd()
@@ -27,8 +12,16 @@ option_list = list(
     "--input",
     default=NULL,
     help=paste(
-      'Input file of Protein Group Intensity (Somalogic)',
+      'Input file of protein group intensity (Somalogic)',
       'Required.',
+      sep=optparse_indent
+    )
+  ),
+  make_option(
+    "--condition",
+    default=NULL,
+    help=paste(
+      'Input file of samples conditon',
       sep=optparse_indent
     )
   ),
@@ -122,14 +115,36 @@ usage_string="Rscript %prog --input [filename] -n [filename] --design [filename]
 opt=parse_args(OptionParser(usage = usage_string, option_list))
 
 
+#Package and Source Code#######################################################################
+source('src/functions.R')
+package_list = c('dplyr','SomaDataIO'  ,'data.table', 
+                 'reshape2','ggplot2','umap','ggdendro','ggrepel',
+                 'clusterProfiler','DOSE')
+cat("INFO: Loading required packages\n      ")
+cat(paste(package_list, collapse='\n      ')); cat('\n')
+defaultW=getOption("warn"); options(warn = -1)   # Temporarily disable warnings for quiet loading
+if(all((lapply(package_list, require, character.only=TRUE)))) {
+  cat("INFO: All packages successfully loaded\n")
+} else {
+  cat("ERROR: One or more packages not available. Are you running this within the container?\n")
+  quit()
+}
+
+#
+
 #### IMPORT AND FORMAT DATA#########################################################################
 tryTo(paste0('INFO: Reading input file ', opt$input),{
   my_adat=read_adat(opt$input)
 }, paste0('ERROR: problem trying to load ', opt$input, ', does it exist?'))
 
-tryTo(paste0('INFO: Reading condition file ',opt$condition),{
-  condition_file=read.csv(opt$condition)
-}, paste0('ERROR: problem trying to load ', opt$condition, ', does it exist?'))
+if (!is.null(opt$condition)) {
+  tryTo(paste0('INFO: Reading condition file ', opt$condition),{
+    condition=fread(opt$condition)
+  }, paste0('ERROR: problem trying to load ', opt$input, ', does it exist?'))
+}else{
+  condition <- my_adat %>%
+    select_if(~ !is.numeric(.))
+}
 
 ## MAKE DIRS
 if(! dir.exists(opt$outdir)){
@@ -138,12 +153,17 @@ if(! dir.exists(opt$outdir)){
 
 #Writing the standard CSV output 
 tryTo(paste0('INFO: Writing the standard CSV output '), {
+  dat=soma_sample_out(DT = my_adat)
   dat_all=soma_all_output(DT = my_adat,
                           output_dir = opt$outdir)
-  dat=soma_sample_out(DT = my_adat)
   dat_fillter=Buffer_filter(DT = dat_all,output_dir = opt$outdir)
-  condition=condition=my_adat%>%
-    select(-contains("seq."))
+  if (!is.null(opt$condition)){
+    tryTo(paste0('INFO: Reading condition file ',opt$condition),{
+      condition_file=read.csv(opt$condition)
+    }, paste0('ERROR: problem trying to load ', opt$condition, ', does it exist?'))
+  }else{condition=condition=my_adat%>%
+    select(-contains("seq."))}
+  
 }, 'ERROR: failed! Check for missing/corrupt headers?')
 
 #Converting to long format
@@ -152,7 +172,6 @@ tryTo(paste0('INFO: Converting to long format'), {
   dat_fillter_long=melt_intensity_table(dat_fillter)
   dat_all_long=melt_intensity_table(dat_all)
 }, 'ERROR: failed! Check for missing/corrupt headers?')
-
 
 #### QC ############################################################################################
 ## MAKE DIRS
@@ -167,19 +186,15 @@ tryTo('INFO: Tabulating protein group counts',{
   ezwrite(x = pgcounts, 
           output_dir = QC_dir, 
           output_filename = 'protein_group_counts_over_buffer.tsv')
-  plot_pg_counts(DT = pgcounts, 
-                 output_dir = QC_dir, 
-                 output_filename = 'protein_group_counts_over_buffer.pdf')
   soma_plot_counts(counts = pgcounts,
                    condition_file = condition,
                    output_dir = QC_dir)
-}, 'ERROR: failed!')
+ }, 'ERROR: failed!')
 
 ## Plotting intensity distribution
 tryTo('INFO: Plotting intensity distribution',{
   plot_pg_intensities(dat_long, QC_dir, 'intensities.pdf')
   plot_pg_intensities(dat_all_long, QC_dir, 'all_intensities.pdf')
-  
 }, 'ERROR: failed!')
 
 #### CLUSTERING ####################################################################################
@@ -196,9 +211,6 @@ tryTo('INFO: running Hierarchical Clustering',{
 # PCA
 tryTo('INFO: running PCA and plotting first two components',{
   pca=soma_get_PCs(dat,condition)
-  pca$summary=merge(pca$summary,condition,by.x='Sample',by.y='SampleId')
-  ezwrite(pca$components, cluster_dir, 'PCA.tsv')
-  ezwrite(pca$summary, cluster_dir, 'PCA_summary.tsv')
   soma_plot_PCs(pca, cluster_dir, 'PCA.pdf')
 }, 'ERROR: failed!')
 
@@ -213,39 +225,48 @@ if ((ncol(dat)-3)>opt$neighbors) {
 }
 
 #### DIFFERENTIAL INTENSITY########################################################################
-#### DIFFERENTIAL INTENSITY########################################################################
-if (!is.null(opt$design)) {
-  if (opt$DE_method == 'ttest') {
-    tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
-      for (treatment in conditions) {
-        print(paste0(treatment, ' vs ', control, ' DE analysis'))
-        treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
-        if (length(treatment_sample_names)==0) {next}
-        control <- unique(design[condition == treatment, control])
-        control_sample_names <- colnames(dat)[colnames(dat) %like% control]
-        if (length(control_sample_names)==0) {next}
-        if(treatment != control) {
-          t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
-          ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
-          plot_volcano_pep(t_test, treatment, control, opt$log_base, opt$lfc_threshold, opt$fdr_threshold, DI_dir, opt$labelgene)
-          enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
-        }
-      }
-    }, 'ERROR: failed!')
-  }else if (opt$DE_method == 'limma') {
-    Log2_dat=dat
-    Log2_dat=as.data.frame(Log2_dat)
-    Log2_dat[, 3:ncol(Log2_dat)]=log2(Log2_dat[, 3:ncol(Log2_dat)]+1)
-    
-    do_limma(Log2_DT = Log2_dat,
-             design_matrix = opt$design,
-             DE_dir = DI_dir,
-             lfc_threshold =opt$lfc_threshold,
-             fdr_threshold =opt$fdr_threshold,
-             enrich_pvalue = opt$enrich_pvalue )
-  }
+DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
+if(! dir.exists(DI_dir)){
+  dir.create(DI_dir, recursive = T)
 }
 
+EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
+if(! dir.exists(EA_dir)){
+  dir.create(EA_dir, recursive = T)
+}
+tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
+  conditions=na.omit(unique(condition$SampleGroup))
+  for (i in 1:(length(conditions) - 1)) {
+    for (j in (i + 1):length(conditions)) {
+      treat <- conditions[i]
+      control <- conditions[j]
+      print(paste0(treat, ' vs ', control, ' DE analysis'))
+      treatment_sample_names <- intersect(colnames(dat), condition$SampleId[condition$SampleGroup == treat])
+      if (length(treatment_sample_names)==0) {next}
+      control_sample_names <- intersect(colnames(dat), condition$SampleId[condition$SampleGroup == control])
+      t_test <- do_t_test(DT = dat, 
+                          treatment_samples = treatment_sample_names, 
+                          control_samples = control_sample_names)
+      ezwrite(t_test[order(p.adj)], DI_dir, paste0(treat, '_vs_', control, '_ttest.tsv'))
+      soma_plot_volcano(DT.original = t_test,
+                        out_dir =DI_dir ,
+                        output_filename = paste0(treat, '_vs_', control),
+                        label_col = 'Genes',
+                        lfc_threshold = 0,
+                        fdr_threshold = 0.01,
+                        labelgene =opt$labelgene )
+
+      enrich_pathway(DT.original = t_test, 
+                     treatment = treat, 
+                     control = control, 
+                     outdir = EA_dir, 
+                     lfc_threshold = 0, 
+                     fdr_threshold = 0.01,
+                     enrich_pvalue = opt$enrich_pvalue)
+      
+    }
+  }
+}, 'ERROR: failed!')
 #### HEATMAP ########################################################################
 plot_heatmap(dat)
 if (!is.null(opt$heatmap)) {
@@ -253,3 +274,5 @@ if (!is.null(opt$heatmap)) {
 }
 
 quit()
+
+
