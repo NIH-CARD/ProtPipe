@@ -12,12 +12,12 @@ if ! command -v singularity &> /dev/null; then
         echo "ERROR: module command not found. Did you mean to run this on an HPC?"
         exit 1
     else
-        if $(module avail singularity/3 2>&1 >/dev/null | grep -q 'No module'); then
+        if $(module avail singularity 2>&1 >/dev/null | grep -q 'No module'); then
             echo 'ERROR: singularity cannot be found. Recheck installation?'
             exit 1
         else
             echo 'INFO: module singularity found'
-            module load singularity/3
+            module load singularity
         fi
     fi
 else
