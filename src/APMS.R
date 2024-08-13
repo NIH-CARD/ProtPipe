@@ -232,9 +232,12 @@ if (badargs == TRUE) {
 
 
 #### PACKAGES ######################################################################################
-package_list = c('ggplot2', 'data.table', 'corrplot', 'umap', 'magick', 'ggdendro', 'ecodist',
-                 'ggbeeswarm', 'ggrepel', 'ggthemes', 'foreach','reshape2','org.Hs.eg.db',
-                 'clusterProfiler','STRINGdb','eulerr','DOSE')
+package_list = c( 'data.table', 'foreach','reshape2',
+                 'corrplot', 'umap', 'magick', 'eulerr',
+                 'ggplot2','ggdendro', 'ecodist','ggbeeswarm', 'ggrepel', 'ggthemes', 
+                 'org.Hs.eg.db','clusterProfiler','DOSE','enrichplot',
+                 'STRINGdb',
+                 'dplyr')
 cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 

@@ -20,6 +20,24 @@ option_list = list(
     )
   ),
   make_option(
+    "--PTM075",
+    default=NULL,
+    help=paste(
+      'Input report uses the PTM Localization probability cutoff of 0.75 from Spectronaut',
+      'Required.',
+      sep=optparse_indent
+    )
+  ),
+  make_option(
+    "--PTM000",
+    default=NULL,
+    help=paste(
+      'Input report uses the PTM Localization probability cutoff of 0 from Spectronaut',
+      'Required.',
+      sep=optparse_indent
+    )
+  ),
+  make_option(
     "--out",
     dest="outdir",
     default='output', 
@@ -82,9 +100,9 @@ option_list = list(
   make_option(
     "--minintensity",
     dest = 'minintensity',
-    default=0,
+    default=500,
     type='numeric',
-    help='Minimum LINEAR (not log) intensity. Default: 0'
+    help='Minimum LINEAR (not log) intensity. Default: 500'
   ),
   make_option(
     "--fdr",
@@ -98,9 +116,9 @@ option_list = list(
     )
   ),
   make_option(
-    "--foldchange",
-    dest = 'foldchange',
-    default=2,
+    "--lfc_threshold",
+    dest = 'lfc_threshold',
+    default=1,
     type='numeric',
     help=paste(
       'Minimum LINEAR fold change [NOT log, as log base can be modified] for labeling',
@@ -185,8 +203,8 @@ option_list = list(
 
 opt <- parse_args(OptionParser(option_list=option_list))
 
-if (is.null(opt$pgfile) && is.null(opt$pepfile)) {
-  cat("ERROR: --pgfile <file> or --pepfile  <file> must be provided\n")
+if (is.null(opt$PTM075)  && is.null(opt$PTM000) && is.null(opt$pepfile)) {
+  cat("ERROR: --pepfile <file> or --PTM075 <file> and --PTM000<file> must be provided\n")
   badargs <- TRUE
 }
 
@@ -196,7 +214,7 @@ source('src/functions.R')
 package_list = c('plyr','dplyr','ggplot2','ggridges', 'data.table', 'corrplot', 
                  'umap', 'magick', 'ggdendro', 'ecodist','ggbeeswarm', 
                  'ggrepel', 'ggthemes', 'foreach','reshape2','org.Hs.eg.db',
-                 'clusterProfiler','pheatmap','limma','UpSetR','maSigPro','KSEAapp')
+                 'clusterProfiler','pheatmap','limma','UpSetR','maSigPro','KSEAapp','DOSE')
 cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 
@@ -208,16 +226,46 @@ if(all((lapply(package_list, require, character.only=TRUE)))) {
 }
 options(warn = defaultW)    # Turn warnings back on
 
+
 #### IMPORT AND FORMAT DATA#########################################################################
-tryTo(paste0('INFO: Reading input file ', opt$pepfile),{
-  dat <- fread(opt$pepfile)
+##peptide file
+if (!is.null(opt$pepfile)) {
+  #### IMPORT AND FORMAT DATA#########################################################################
+  tryTo(paste0('INFO: Reading input file ', opt$pepfile),{
+    dat <- fread(opt$pepfile)
   }, paste0('ERROR: problem trying to load ', opt$pepfile, ', does it exist?'))
   
-tryTo(paste0('INFO: Massaging data from ', opt$pepfile, ' into a common style format for processing'), {
-  dat <- phospho_standardize_format(dat)
+  tryTo(paste0('INFO: Massaging data from ', opt$pepfile, ' into a common style format for processing'), {
+    dat <- phospho_standardize_format(dat)
   }, 'ERROR: failed! Check for missing/corrupt headers?')
+}
 
-#Identify unique PTM with the least missing values and highest median intensity
+##PTM000 and PTM075
+if (!is.null(opt$PTM075)  && !is.null(opt$PTM000)) {
+  #### IMPORT AND FORMAT DATA#########################################################################
+  tryTo(paste0('INFO: Reading input file ', opt$PTM075,' and ',opt$PTM000),{
+    data_ptm075=fread(opt$PTM075)%>%
+      phospho_standardize_format()
+    data_ptm000=fread(opt$PTM000)%>%
+      phospho_standardize_format()
+  }, paste0('ERROR: problem trying to load ', opt$pepfile, ', does it exist?'))
+  
+  tryTo(paste0('INFO: Fillter the “PTM000” report to only contain precursors (EG.PrecursorId) exported in the “PTM075” '), {
+    dat=data_ptm000 %>%
+      filter(Precursor %in% data_ptm075$Precursor)
+  }, 'ERROR: failed! Check for missing/corrupt headers?')
+  
+}else{
+  cat("ERROR: Both --PTM075 <file> and --PTM000<file> must be provided\n")
+  badargs <- TRUE
+}
+
+#### DATA FILTER###############################################
+tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
+  dat <- dat%>%
+    mutate(across(where(is.numeric), ~ ifelse(. < opt$minintensity, NA, .)))
+}, 'ERROR: failed!')
+
 tryTo(paste0('INFO: Identify unique PTM with the least missing values and highest median intensity'), {
   phospho_dat <- dat %>%
     #Filter for phospho sites
@@ -242,48 +290,63 @@ tryTo(paste0('INFO: Identify unique PTM with the least missing values and highes
 tryTo(paste0('INFO: Converting to long format'), {
   dat_long <- melt_intensity_table(dat)
   phospho_dat_long=melt_intensity_table(phospho_dat)
-  }, 'ERROR: failed! Check for missing/corrupt headers?')
-  
+}, 'ERROR: failed! Check for missing/corrupt headers?')
+
 tryTo('INFO: Excluding all unquantified or zero intensities', {
   dat_long <- dat_long[! is.na(Intensity)][Intensity != 0]
   phospho_dat_long <- phospho_dat_long[! is.na(Intensity)][Intensity != 0]
-  }, 'ERROR: failed!')
-  
-tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
-  dat_long <- dat_long[Intensity > opt$minintensity]
-  phospho_dat_long <- phospho_dat_long[Intensity > opt$minintensity]
-  }, 'ERROR: failed!')
-  
+}, 'ERROR: failed!')
+
 #### QC ############################################################################################
 ## Make QC dir
 QC_dir <- paste0(opt$outdir, '/QC/')
 if(! dir.exists(QC_dir)){
   dir.create(QC_dir, recursive = T)
-  }
+}
+
 ## Plotting intensity distribution
 tryTo('INFO: Plotting Precursor counts',{
   plot_phospho_site_counts(DT_phospho_long =phospho_dat_long,
-                          output_dir = QC_dir,
-                          height = 6, 
-                          width = 12)
-  }, 'ERROR: failed!')
-  
+                           output_dir = QC_dir,
+                           height = 6, 
+                           width = 12)
+   }, 'ERROR: failed!')
 tryTo('INFO: Plotting intensity distribution',{
   plot_phospho_site_intensity(DT_phospho_long =phospho_dat_long,
                               output_dir = QC_dir)
+}, 'ERROR: failed!')
+
+#### CLUSTERING ####################################################################################
+cluster_dir <- paste0(opt$outdir, '/Clustering/')
+if(! dir.exists(cluster_dir)){
+  dir.create(cluster_dir, recursive = T)
+}
+# PCA
+tryTo('INFO: running PCA and plotting first two components',{
+  pca <- get_PCs(phospho_dat)
+  ezwrite(pca$components, cluster_dir, 'PCA.tsv')
+  ezwrite(pca$summary, cluster_dir, 'PCA_summary.tsv')
+  plot_PCs(pca, cluster_dir, 'PCA.pdf')
+}, 'ERROR: failed!')
+
+# Hierarchical Clustering
+tryTo('INFO: running Hierarchical Clustering',{
+  plot_hierarchical_cluster(phospho_dat, cluster_dir)
+}, 'ERROR: failed!')
+
+# UMAP
+if ((ncol(dat)-3)>opt$neighbors) {
+  tryTo('INFO: running UMAP',{
+    umap <- get_umap(dat, opt$neighbors)
+    ezwrite(umap, cluster_dir, 'UMAP.tsv')
+    plot_umap(umap, cluster_dir, 'UMAP.pdf')
   }, 'ERROR: failed!')
+}
 
 
-####DE##########################
+
+#### DE and pathway analysis##########################
 if (!is.null(opt$design)) {
-  DE_dir <- paste0(opt$outdir, '/Differential_Intensity/')
-  if(! dir.exists(DE_dir)){
-    dir.create(DI_dir, recursive = T)
-  }
-  EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
-  if(! dir.exists(EA_dir)){
-    dir.create(EA_dir, recursive = T)
-  }
   tryTo('INFO: Importing experimental design',{
     design <- fread(opt$design, header=TRUE)
     setnames(design, c('sample_name', 'condition', 'control'))
@@ -307,25 +370,45 @@ if (!is.null(opt$design)) {
   }, 'ERROR: failed!')
   ##DE ttest
   if (opt$DE_method == 'ttest') {
+    DE_dir <- paste0(opt$outdir, '/ttest/Differential_Intensity/')
+    if(! dir.exists(DE_dir)){
+      dir.create(DE_dir, recursive = T)
+    }
+    EA_dir <- paste0(opt$outdir, '/ttest/Enrichiment_Analysis/')
+    if(! dir.exists(EA_dir)){
+      dir.create(EA_dir, recursive = T)
+    }
     tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
+      phospho_ttest(DT = phospho_dat,
+                    design_matrix = design,
+                    DE_dir =DE_dir ,
+                    EA_dir = EA_dir)
+      
     }, 'ERROR: DE ttest failed!')
   }
   ##DE limma
   else if (opt$DE_method == 'limma') {
+    DE_dir <- paste0(opt$outdir, '/limma/Differential_Intensity/')
+    if(! dir.exists(DE_dir)){
+      dir.create(DE_dir, recursive = T)
+      }
+    EA_dir <- paste0(opt$outdir, '/limma/Enrichiment_Analysis/')
+    if(! dir.exists(EA_dir)){
+      dir.create(EA_dir, recursive = T)
+      }
     Log2_phospho_dat=as.data.frame(phospho_dat) %>%
       mutate_if(is.numeric, ~ log2(. ))
-    do_limma(Log2_DT = Log2_phospho_dat,
+    phospho_limma(Log2_DT = Log2_phospho_dat,
              design_matrix = design,
-             DE_dir = DI_dir,
-             EA_dir=EA_dir,
-             lfc_threshold =opt$lfc_threshold,
-             fdr_threshold =opt$fdr_threshold,
-             enrich_pvalue = opt$enrich_pvalue )
+             DE_dir = DE_dir,
+             EA_dir=EA_dir)
   }
+} 
+#### HEATMAP ########################################################################
+plot_heatmap(dat)
+if (!is.null(opt$heatmap)) {
+  plot_heatmap_subset(dat,opt$heatmap)
 }
-  
-
-
 
 quit()
 
