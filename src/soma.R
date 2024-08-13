@@ -19,24 +19,6 @@ option_list = list(
   ),
   make_option(
     "--condition",
-    default=NULL,
-    help=paste(
-      'Input file of samples conditon',
-      sep=optparse_indent
-    )
-  ),
-  make_option(
-    "--n",
-    dest='out_name',
-    default='out',
-    help=paste(
-      'name of outfile',
-      'Defaults:out.tsv',
-      sep=optparse_indent
-    )
-  ),
-  make_option(
-    "--condition",
     dest='condition',
     default=NULL,
     help=paste(
@@ -88,6 +70,28 @@ option_list = list(
     )
   ),
   make_option(
+    "--lfc_threshold",
+    dest = 'lfc_threshold',
+    default=0,
+    type='numeric',
+    help=paste(
+      'The cutoff of log2 fold change for DE analysis.',
+      'Default: 0',
+      sep=optparse_indent
+    )
+  ),
+  make_option(
+    "--fdr_threshold",
+    dest = 'fdr_threshold',
+    default=0.01,
+    type='numeric',
+    help=paste(
+      'The cutoff of p-value for DE analysis.',
+      'Default: 0.01',
+      sep=optparse_indent
+    )
+  ),
+  make_option(
     "--enrich",
     dest = 'enrich_pvalue',
     default=0.01,
@@ -111,15 +115,17 @@ option_list = list(
   )
 )
 
-usage_string="Rscript %prog --input [filename] -n [filename] --design [filename] --condition [other options] "
+usage_string="Rscript %prog --input [filename]"
 opt=parse_args(OptionParser(usage = usage_string, option_list))
 
 
 #Package and Source Code#######################################################################
 source('src/functions.R')
-package_list = c('dplyr','SomaDataIO'  ,'data.table', 
+package_list = c('SomaDataIO' ,'data.table', 
                  'reshape2','ggplot2','umap','ggdendro','ggrepel',
-                 'clusterProfiler','DOSE')
+                 'clusterProfiler','org.Hs.eg.db','DOSE','enrichplot',
+                 'dplyr',
+                 'pheatmap')
 cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 defaultW=getOption("warn"); options(warn = -1)   # Temporarily disable warnings for quiet loading
@@ -130,7 +136,6 @@ if(all((lapply(package_list, require, character.only=TRUE)))) {
   quit()
 }
 
-#
 
 #### IMPORT AND FORMAT DATA#########################################################################
 tryTo(paste0('INFO: Reading input file ', opt$input),{
@@ -151,12 +156,12 @@ if(! dir.exists(opt$outdir)){
   dir.create(opt$outdir, recursive = T)
 }
 
-#Writing the standard CSV output 
+#Writing the standard TSV output 
 tryTo(paste0('INFO: Writing the standard CSV output '), {
   dat=soma_sample_out(DT = my_adat)
   dat_all=soma_all_output(DT = my_adat,
                           output_dir = opt$outdir)
-  dat_fillter=Buffer_filter(DT = dat_all,output_dir = opt$outdir)
+  dat_filter=Buffer_filter(DT = dat_all,output_dir = opt$outdir)
   if (!is.null(opt$condition)){
     tryTo(paste0('INFO: Reading condition file ',opt$condition),{
       condition_file=read.csv(opt$condition)
@@ -169,7 +174,7 @@ tryTo(paste0('INFO: Writing the standard CSV output '), {
 #Converting to long format
 tryTo(paste0('INFO: Converting to long format'), {
   dat_long=melt_intensity_table(dat)
-  dat_fillter_long=melt_intensity_table(dat_fillter)
+  dat_filter_long=melt_intensity_table(dat_filter)
   dat_all_long=melt_intensity_table(dat_all)
 }, 'ERROR: failed! Check for missing/corrupt headers?')
 
@@ -181,7 +186,7 @@ if(! dir.exists(QC_dir)){
 }
 ## Get counts of [N=unique gene groups with `Intensity` > 0]
 tryTo('INFO: Tabulating protein group counts',{
-  pgcounts=dat_fillter_long[, .N, by=Sample]
+  pgcounts=dat_filter_long[, .N, by=Sample]
   # Order samples by ascending counts
   ezwrite(x = pgcounts, 
           output_dir = QC_dir, 
@@ -196,6 +201,12 @@ tryTo('INFO: Plotting intensity distribution',{
   plot_pg_intensities(dat_long, QC_dir, 'intensities.pdf')
   plot_pg_intensities(dat_all_long, QC_dir, 'all_intensities.pdf')
 }, 'ERROR: failed!')
+
+## Missing value check and plot
+tryTo('INFO: Missing value check and plot',{
+  miss_value_plot(DT = dat_filter,outdir = QC_dir)
+}, 'ERROR: failed!')
+
 
 #### CLUSTERING ####################################################################################
 cluster_dir=paste0(opt$outdir, '/Clustering/')
@@ -216,13 +227,11 @@ tryTo('INFO: running PCA and plotting first two components',{
 
 
 # UMAP
-if ((ncol(dat)-3)>opt$neighbors) {
-  tryTo('INFO: running UMAP',{
-    umap=get_umap(dat)
-    ezwrite(umap, cluster_dir, 'UMAP.tsv')
-    plot_umap(umap, cluster_dir, 'UMAP.pdf')
-  }, 'ERROR: failed!')
-}
+tryTo('INFO: running UMAP',{
+  umap=soma_get_umap(dat,condition)
+  ezwrite(umap, cluster_dir, 'UMAP.tsv')
+  soma_plot_umap(umap, cluster_dir, 'UMAP.pdf')
+}, 'ERROR: failed!')
 
 #### DIFFERENTIAL INTENSITY########################################################################
 DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
@@ -247,31 +256,50 @@ tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
       t_test <- do_t_test(DT = dat, 
                           treatment_samples = treatment_sample_names, 
                           control_samples = control_sample_names)
-      ezwrite(t_test[order(p.adj)], DI_dir, paste0(treat, '_vs_', control, '_ttest.tsv'))
+      dat_Buffer_Calibrator <- dat_all %>% 
+        select(AptName, Buffer, Calibrator)
+      t_test <- merge(dat_Buffer_Calibrator, t_test, by = "AptName")%>%
+        select(AptName, TargetFullName, Protein_Group, Genes, Buffer, Calibrator, 
+               treatment_estimate, control_estimate, logFC, P.Value, adj.P.Val)
+      # Rename columns
+      colnames(t_test)[colnames(t_test) == "treatment_estimate"] <- paste0(treat,'_estimate')
+      colnames(t_test)[colnames(t_test) == "control_estimate"] <- paste0(control,'_estimate')
+      
+      ezwrite(t_test[order(t_test$adj.P.Val),], DI_dir, paste0(treat, '_vs_', control, '_ttest.tsv'))
       soma_plot_volcano(DT.original = t_test,
                         out_dir =DI_dir ,
                         output_filename = paste0(treat, '_vs_', control),
-                        label_col = 'Genes',
-                        lfc_threshold = 0,
-                        fdr_threshold = 0.01,
+                        lfc_threshold = opt$lfc_threshold,
+                        fdr_threshold = opt$fdr_threshold,
                         labelgene =opt$labelgene )
-
+      soma_box_plot(soma_adat = my_adat,
+                    out_dir = DI_dir,
+                    gene = opt$labelgene,
+                    t_test = t_test,
+                    levels = NULL,
+                    color = NULL)
+     
       enrich_pathway(DT.original = t_test, 
                      treatment = treat, 
                      control = control, 
                      outdir = EA_dir, 
-                     lfc_threshold = 0, 
-                     fdr_threshold = 0.01,
+                     lfc_threshold = opt$lfc_threshold,
+                     fdr_threshold = opt$fdr_threshold,
                      enrich_pvalue = opt$enrich_pvalue)
       
     }
   }
 }, 'ERROR: failed!')
 #### HEATMAP ########################################################################
-plot_heatmap(dat)
-if (!is.null(opt$heatmap)) {
-  plot_heatmap_subset(dat,opt$heatmap)
-}
+tryTo('INFO: Plot heatmap',{
+  soma_plot_heatmap(DT_heatmap = dat,condition_file = condition)
+  if (!is.null(opt$heatmap)) {
+    soma_plot_heatmap_subset(DT_heatmap = dat,
+                             condition_file = condition,
+                             gene_subset = opt$heatmap)
+  }
+}, 'ERROR: failed!')
+
 
 quit()
 
