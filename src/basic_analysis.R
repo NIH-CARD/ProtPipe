@@ -223,6 +223,9 @@ options(warn = defaultW)    # Turn warnings back on
 
 
 ###pgfile ############# 
+if(! dir.exists(opt$outdir)){
+  dir.create(opt$outdir, recursive = T)
+}
 if (!is.null(opt$pgfile)) {
   #### IMPORT AND FORMAT DATA#########################################################################
   tryTo(paste0('INFO: Reading input file ', opt$pgfile),{
@@ -250,6 +253,22 @@ if (!is.null(opt$pgfile)) {
     }, paste0('ERROR: problem trying to load ', opt$pgfile, ', does it exist?'))
   }
   
+  tryTo(paste0('INFO: Identify unique PG.Group with the least missing values and highest median intensity'), {
+    dat <- dat %>%
+      # Calculate missing values 
+      mutate(missing_value = rowSums(is.na(select(., -contains("Protein_Group|Genes")))))%>% 
+      # Calculate median values
+      mutate(median = rowMedians(as.matrix(select(., -contains("Protein_Group|Genes|missing_value")) %>% 
+                                             select_if(is.numeric)), na.rm = TRUE)) %>%
+      #Identify unique Protein_Group with the least missing values and highest median intensity
+      group_by(Protein_Group) %>%
+      filter(missing_value == min(missing_value)) %>%
+      slice(which.max(median)) %>%
+      ungroup() %>%
+      select(-c(missing_value, median)) 
+    write.csv(dat,paste0(opt$outdir,'/','data_output.csv'),row.names = F )
+  }, 'ERROR: failed! Check for colnames?')
+  
   #Converting to long format
   tryTo(paste0('INFO: Converting to long format'), {
     dat.long <- melt_intensity_table(dat)
@@ -263,13 +282,13 @@ if (!is.null(opt$pgfile)) {
     dat.long <- dat.long[Intensity > opt$minintensity]
   }, 'ERROR: failed!')
   
-  #### QC ############################################################################################
+  #### QC ###########################################################################
   QC_dir <- paste0(opt$outdir, '/QC/')
   if(! dir.exists(QC_dir)){
     dir.create(QC_dir, recursive = T)
   }
-  ## Plotting intensity distribution
   
+  ## Plotting intensity distribution
   tryTo('INFO: Plotting intensity distribution',{
     plot_pg_intensities(dat.long, QC_dir, 'intensities.pdf')
     # plot_density(dat.long, QC_dir, 'intensity_density.pdf')
@@ -321,37 +340,6 @@ if (!is.null(opt$pgfile)) {
     plot_correlation_heatmap(dat.correlations, QC_dir, 'sample_correlation.pdf')
   }, 'ERROR: failed!')
   
-  if (!is.null(opt$exclude)) {
-    tryTo(paste('INFO: excluding samples', opt$exclude),{
-      design <- design[! sample_name %in% opt$exclude]
-    }, 'ERROR: failed!')
-  }
-  
-  if (!is.null(opt$design)) {
-    tryTo('INFO: Importing experimental design',{
-      design <- fread(opt$design, header=TRUE)
-      setnames(design, c('sample_name', 'condition', 'control'))
-    }, 'ERROR: failed!')
-    tryTo('INFO: Validating experimental design',{
-      print(design[])
-      cat('\n')
-      conditions <- unique(design$condition)
-      for (condition.i in conditions) {
-        samples <- design[condition == condition.i, sample_name]
-        control <- unique(design[condition == condition.i, control])
-        if (length(control) != 1) {
-          cat(paste0('ERROR: condition ', condition.i, ' maps to multiple controls: ', control, '\n'))
-          cat(paste0('       Check the design matrix and esure no more than one control label per condition\n'))
-          quit(exit=1)
-        } else {
-          cat(paste0('INFO: condition ', condition.i, ' maps to control ', control, '\n'))
-        }
-      }
-      cat(paste0('INFO: all conditions pass check (i.e. map to one control condition)\n'))
-    }, 'ERROR: failed!')
-  }
-  
-  
   ## Exclude samples with N protein groups < opt$sds away from mean
   ## Default value: 3 standard deviations, modifiable with --sds [N]
   tryTo('INFO: Identifying samples with protein group count outliers',{
@@ -366,20 +354,20 @@ if (!is.null(opt$pgfile)) {
     if(length(low_count_samples)==0) {
       cat('\nINFO: No low group count samples to remove\n')
     } else {
-      cat(paste0('\nINFO: Pruning low-count outlier ', low_count_samples))
+      cat(paste0('\nINFO: runing low-count outlier ', low_count_samples))
       cat('\n\n')
       print(pgcounts[Sample %in% low_count_samples])
       cat('\n')
-      dat[, c(low_count_samples) := NULL]    # remove sample columns from wide table
+      dat[, colnames(dat) %in% low_count_samples]= NULL    # remove sample columns from wide table
       dat.long <- dat.long[! (Sample %in% low_count_samples)] # remove rows from long table
     }
     if(length(high_count_samples)==0) {
       cat('INFO: No high group count samples to remove\n')
     } else {
-      cat(paste0('\nINFO: Pruning high-count outlier ', high_count_samples))
+      cat(paste0('\nINFO: runing high-count outlier ', high_count_samples))
       cat('\n')
       print(pgcounts[Sample %in% high_count_samples])
-      dat[, c(high_count_samples) := NULL]    # remove sample columns from wide table
+      dat[, colnames(dat) %in% high_count_samples]= NULL     # remove sample columns from wide table
       dat.long <- dat.long[! (Sample %in% high_count_samples)] # remove rows from long table
     }
   }, 'ERROR: failed!')
@@ -413,10 +401,20 @@ if (!is.null(opt$pgfile)) {
   
   #### DIFFERENTIAL INTENSITY########################################################################
   if (!is.null(opt$design)) {
+    tryTo('INFO: Importing experimental design',{
+      design <- fread(opt$design, header=TRUE)
+      setnames(design, c('sample_name', 'condition', 'control'))
+    }, 'ERROR: failed!')
+    if (!is.null(opt$exclude)) {
+      tryTo(paste('INFO: excluding samples', opt$exclude),{
+        design <- design[! sample_name %in% opt$exclude]
+      }, 'ERROR: failed!')
+    }
+
     if (opt$DE_method == 'ttest') {
-      DI_dir <- paste0(opt$outdir, '/ttest/Differential_Intensity/')
-      if(! dir.exists(DI_dir)){
-        dir.create(DI_dir, recursive = T)
+      DE_dir <- paste0(opt$outdir, '/ttest/Differential_Intensity/')
+      if(! dir.exists(DE_dir)){
+        dir.create(DE_dir, recursive = T)
       }
       
       EA_dir <- paste0(opt$outdir, '/ttest/Enrichiment_Analysis/')
@@ -424,33 +422,18 @@ if (!is.null(opt$pgfile)) {
         dir.create(EA_dir, recursive = T)
       }
       tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
-        for (treatment in conditions) {
-          print(paste0(treatment, ' vs ', control, ' DE analysis'))
-          treatment_sample_names <- intersect(colnames(dat), design[condition == treatment, sample_name])
-          if (length(treatment_sample_names)==0) {next}
-          control <- unique(design[condition == treatment, control])
-          control_sample_names <- colnames(dat)[colnames(dat) %like% control]
-          if (length(control_sample_names)==0) {next}
-          if(treatment != control) {
-            t_test <- do_t_test(DT = dat, treatment_samples = treatment_sample_names,control_samples =  control_sample_names)
-            ezwrite(t_test[order(adj.P.Val)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
-            plot_volcano(DT.original = t_test, 
-                         out_dir = DI_dir,
-                         output_filename = paste0(treatment, '_vs_', control, '_ttest'),
-                         label_col = 'Genes',
-                         lfc_threshold = opt$lfc_threshold,
-                         fdr_threshold = opt$fdr_threshold,
-                         labelgene =  opt$labelgene)
-            enrich_pathway(t_test, treatment, control, EA_dir, opt$lfc_threshold, opt$fdr_threshold,opt$enrich_pvalue)
-          }
-        }
-      }, 'ERROR: failed!')
-      
+        do_t_test(DT = dat,
+                  col = 'Protein_Group',
+                  design_matrix = design,
+                  DE_dir =DE_dir ,
+                  EA_dir = EA_dir)
+        
+      }, 'ERROR: DE ttest failed!')
     }
     else if (opt$DE_method == 'limma') {
-      DI_dir <- paste0(opt$outdir, '/limma/Differential_Intensity/')
-      if(! dir.exists(DI_dir)){
-        dir.create(DI_dir, recursive = T)
+      DE_dir <- paste0(opt$outdir, '/limma/Differential_Intensity/')
+      if(! dir.exists(DE_dir)){
+        dir.create(DE_dir, recursive = T)
       }
       
       EA_dir <- paste0(opt$outdir, '/limma/Enrichiment_Analysis/')
@@ -463,20 +446,20 @@ if (!is.null(opt$pgfile)) {
       
       do_limma(Log2_DT = Log2_dat,
                design_matrix = design,
-               DE_dir = DI_dir,
+               DE_dir = DE_dir,
                EA_dir=EA_dir,
                lfc_threshold =opt$lfc_threshold,
                fdr_threshold =opt$fdr_threshold,
                enrich_pvalue = opt$enrich_pvalue )
     }
   }
-  
   #### HEATMAP ########################################################################
   plot_heatmap(dat)
   if (!is.null(opt$heatmap)) {
     plot_heatmap_subset(dat,opt$heatmap)
   }
-}
+  }
+
 
 ##pepfile########  
 if (!is.null(opt$pepfile)) {
@@ -672,9 +655,9 @@ if (!is.null(opt$pepfile)) {
   #### DIFFERENTIAL INTENSITY########################################################################
   if (!is.null(opt$design)) {
     if (opt$DE_method == 'ttest') {
-      DI_dir <- paste0(opt$outdir, '/ttest/Differential_Intensity/')
-      if(! dir.exists(DI_dir)){
-        dir.create(DI_dir, recursive = T)
+      DE_dir <- paste0(opt$outdir, '/ttest/Differential_Intensity/')
+      if(! dir.exists(DE_dir)){
+        dir.create(DE_dir, recursive = T)
       }
       
       EA_dir <- paste0(opt$outdir, '/ttest/Enrichiment_Analysis/')
@@ -691,9 +674,9 @@ if (!is.null(opt$pepfile)) {
           if (length(control_sample_names)==0) {next}
           if(treatment != control) {
             t_test <- do_t_test(dat, treatment_sample_names, control_sample_names)
-            ezwrite(t_test[order(p.adj)], DI_dir, paste0(treatment, '_vs_', control, '.tsv'))
+            ezwrite(t_test[order(p.adj)], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
             plot_volcano(DT.original = t_test,
-                         out_dir = DI_dir,
+                         out_dir = DE_dir,
                          output_filename = paste0(treatment, '_vs_', control, '_ttest'),
                          label_col = 'Peptide_Sequence',
                          lfc_threshold =opt$lfc_threshold, 
@@ -705,9 +688,9 @@ if (!is.null(opt$pepfile)) {
       }, 'ERROR: failed!')
     }
     else if (opt$DE_method == 'limma') {
-      DI_dir <- paste0(opt$outdir, '/limma/Differential_Intensity/')
-      if(! dir.exists(DI_dir)){
-        dir.create(DI_dir, recursive = T)
+      DE_dir <- paste0(opt$outdir, '/limma/Differential_Intensity/')
+      if(! dir.exists(DE_dir)){
+        dir.create(DE_dir, recursive = T)
       }
       
       EA_dir <- paste0(opt$outdir, '/limma/Enrichiment_Analysis/')
@@ -720,7 +703,7 @@ if (!is.null(opt$pepfile)) {
       
       do_limma(Log2_DT = Log2_dat,
                design_matrix = opt$design,
-               DE_dir = DI_dir,
+               DE_dir = DE_dir,
                lfc_threshold =opt$lfc_threshold,
                fdr_threshold =opt$fdr_threshold,
                enrich_pvalue = opt$enrich_pvalue )

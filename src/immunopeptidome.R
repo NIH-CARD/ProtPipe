@@ -312,7 +312,7 @@ tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
 ## Plotting intensity distribution
 
 tryTo('INFO: Plotting intensity distribution',{
-  plot_pep_intensities(dat.long, QC_dir, 'intensities.pdf', plot_title='Normalized intensities')
+  plot_pep_intensities(dat.long, QC_dir, 'intensities.pdf')
       # plot_density(dat.long, QC_dir, 'intensity_density.pdf')
     # plot_density(dat.long.normalized, QC_dir, 'intensity_density_normalized.pdf')
 }, 'ERROR: failed!')

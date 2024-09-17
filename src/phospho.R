@@ -211,10 +211,11 @@ if (is.null(opt$PTM075)  && is.null(opt$PTM000) && is.null(opt$pepfile)) {
 #### Source the function ###
 source('src/functions.R')
 #### PACKAGES ######################################################################################
-package_list = c('plyr','dplyr','ggplot2','ggridges', 'data.table', 'corrplot', 
+package_list = c('ggplot2','ggridges', 'data.table', 'corrplot', 
                  'umap', 'magick', 'ggdendro', 'ecodist','ggbeeswarm', 
                  'ggrepel', 'ggthemes', 'foreach','reshape2','org.Hs.eg.db',
-                 'clusterProfiler','pheatmap','limma','UpSetR','maSigPro','KSEAapp','DOSE')
+                 'clusterProfiler','pheatmap','limma','UpSetR','maSigPro','KSEAapp','DOSE','enrichplot',
+                 'plyr','dplyr')
 cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 
@@ -226,7 +227,9 @@ if(all((lapply(package_list, require, character.only=TRUE)))) {
 }
 options(warn = defaultW)    # Turn warnings back on
 
-
+if(! dir.exists(opt$outdir)){
+  dir.create(opt$outdir, recursive = T)
+}
 #### IMPORT AND FORMAT DATA#########################################################################
 ##peptide file
 if (!is.null(opt$pepfile)) {
@@ -266,6 +269,22 @@ tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
     mutate(across(where(is.numeric), ~ ifelse(. < opt$minintensity, NA, .)))
 }, 'ERROR: failed!')
 
+tryTo(paste0('INFO: Identify unique Peptide with the least missing values and highest median intensity'), {
+  peptide_dat <- dat %>%
+    # Calculate missing values 
+    mutate(missing_value = rowSums(is.na(select(., -contains("Protein_Group|Genes|PTM|Precursor|Modified_Sequence")))))%>% 
+    # Calculate median values
+    mutate(median = rowMedians(as.matrix(select(., -contains("Protein_Group|Genes|PTM|Precursor|Modified_Sequence|missing_value")) %>% 
+                                           select_if(is.numeric)), na.rm = TRUE)) %>%
+    mutate(Stripped_Sequence = gsub('\\[.*\\]|_', '', Modified_Sequence))%>%
+    #Identify unique PTM with the least missing values and highest median intensity
+    group_by(Stripped_Sequence) %>%
+    filter(missing_value == min(missing_value)) %>%
+    slice(which.max(median)) %>%
+    ungroup() %>%
+    select(-c(missing_value, median)) 
+}, 'ERROR: failed! Check for colnames?')
+
 tryTo(paste0('INFO: Identify unique PTM with the least missing values and highest median intensity'), {
   phospho_dat <- dat %>%
     #Filter for phospho sites
@@ -283,18 +302,20 @@ tryTo(paste0('INFO: Identify unique PTM with the least missing values and highes
     slice(which.max(median)) %>%
     ungroup() %>%
     select(-c(missing_value, median)) 
-  ezwrite(phospho_dat,output_dir = opt$outdir,output_filename ='phospho_data.tsv' )
+  write.csv(phospho_dat,paste0(opt$outdir,'/','phospho_data.csv'),row.names = F )
 }, 'ERROR: failed! Check for colnames?')
 
 #Converting to long format
 tryTo(paste0('INFO: Converting to long format'), {
   dat_long <- melt_intensity_table(dat)
   phospho_dat_long=melt_intensity_table(phospho_dat)
+  peptide_dat_long=melt_intensity_table(peptide_dat)
 }, 'ERROR: failed! Check for missing/corrupt headers?')
 
 tryTo('INFO: Excluding all unquantified or zero intensities', {
   dat_long <- dat_long[! is.na(Intensity)][Intensity != 0]
   phospho_dat_long <- phospho_dat_long[! is.na(Intensity)][Intensity != 0]
+  peptide_dat_long <- peptide_dat_long[! is.na(Intensity)][Intensity != 0]
 }, 'ERROR: failed!')
 
 #### QC ############################################################################################
@@ -304,16 +325,27 @@ if(! dir.exists(QC_dir)){
   dir.create(QC_dir, recursive = T)
 }
 
-## Plotting intensity distribution
-tryTo('INFO: Plotting Precursor counts',{
+## Plotting P-site counts
+tryTo('INFO: Plotting P-site counts',{
   plot_phospho_site_counts(DT_phospho_long =phospho_dat_long,
                            output_dir = QC_dir,
                            height = 6, 
                            width = 12)
-   }, 'ERROR: failed!')
+}, 'ERROR: failed!')
+
+## Plotting intensity distribution
 tryTo('INFO: Plotting intensity distribution',{
   plot_phospho_site_intensity(DT_phospho_long =phospho_dat_long,
                               output_dir = QC_dir)
+}, 'ERROR: failed!')
+
+## Plotting Phospho enrichment
+tryTo('INFO: Plotting Phospho enrichment',{
+  plot_phospho_enrichment(DT_total =peptide_dat_long ,
+                          DT_phospho =phospho_dat_long,
+                          output_dir = QC_dir,
+                          height = 5,
+                          width =6 )
 }, 'ERROR: failed!')
 
 #### CLUSTERING ####################################################################################
@@ -321,18 +353,19 @@ cluster_dir <- paste0(opt$outdir, '/Clustering/')
 if(! dir.exists(cluster_dir)){
   dir.create(cluster_dir, recursive = T)
 }
+
 # PCA
 tryTo('INFO: running PCA and plotting first two components',{
   pca <- get_PCs(phospho_dat)
   ezwrite(pca$components, cluster_dir, 'PCA.tsv')
   ezwrite(pca$summary, cluster_dir, 'PCA_summary.tsv')
   plot_PCs(pca, cluster_dir, 'PCA.pdf')
-}, 'ERROR: failed!')
+  }, 'ERROR: failed!')
 
 # Hierarchical Clustering
 tryTo('INFO: running Hierarchical Clustering',{
   plot_hierarchical_cluster(phospho_dat, cluster_dir)
-}, 'ERROR: failed!')
+  }, 'ERROR: failed!')
 
 # UMAP
 if ((ncol(dat)-3)>opt$neighbors) {
@@ -351,38 +384,31 @@ if (!is.null(opt$design)) {
     design <- fread(opt$design, header=TRUE)
     setnames(design, c('sample_name', 'condition', 'control'))
   }, 'ERROR: failed!')
-  tryTo('INFO: Validating experimental design',{
-    print(design[])
-    cat('\n')
-    conditions <- unique(design$condition)
-    for (condition.i in conditions) {
-      samples <- design[condition == condition.i, sample_name]
-      control <- unique(design[condition == condition.i, control])
-      if (length(control) != 1) {
-        cat(paste0('ERROR: condition ', condition.i, ' maps to multiple controls: ', control, '\n'))
-        cat(paste0('       Check the design matrix and esure no more than one control label per condition\n'))
-        quit(exit=1)
-      } else {
-        cat(paste0('INFO: condition ', condition.i, ' maps to control ', control, '\n'))
-      }
-    }
-    cat(paste0('INFO: all conditions pass check (i.e. map to one control condition)\n'))
-  }, 'ERROR: failed!')
   ##DE ttest
   if (opt$DE_method == 'ttest') {
     DE_dir <- paste0(opt$outdir, '/ttest/Differential_Intensity/')
     if(! dir.exists(DE_dir)){
       dir.create(DE_dir, recursive = T)
     }
-    EA_dir <- paste0(opt$outdir, '/ttest/Enrichiment_Analysis/')
+    GEA_dir <- paste0(opt$outdir, '/ttest/Gene_Enrichiment_Analysis/')
     if(! dir.exists(EA_dir)){
       dir.create(EA_dir, recursive = T)
+    }
+    PTM_EA_dir <- paste0(opt$outdir, '/ttest/Psite_Enrichiment_Analysis/')
+    if(! dir.exists(PTM_EA_dir)){
+      dir.create(PTM_EA_dir, recursive = T)
+    }
+    KSEA_dir <- paste0(opt$outdir, '/ttest/KSEA/')
+    if(! dir.exists(KSEA_dir)){
+      dir.create(KSEA_dir, recursive = T)
     }
     tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
       phospho_ttest(DT = phospho_dat,
                     design_matrix = design,
                     DE_dir =DE_dir ,
-                    EA_dir = EA_dir)
+                    EA_dir = EA_dir,
+                    PTM_EA_dir=PTM_EA_dir)
+      ksea(dir =DE_dir ,outdir = KSEA_dir)
       
     }, 'ERROR: DE ttest failed!')
   }
@@ -392,23 +418,41 @@ if (!is.null(opt$design)) {
     if(! dir.exists(DE_dir)){
       dir.create(DE_dir, recursive = T)
       }
-    EA_dir <- paste0(opt$outdir, '/limma/Enrichiment_Analysis/')
+    EA_dir <- paste0(opt$outdir, '/limma/Gene_Enrichiment_Analysis/')
     if(! dir.exists(EA_dir)){
       dir.create(EA_dir, recursive = T)
-      }
+    }
+    PTM_EA_dir <- paste0(opt$outdir, '/limma/Psite_Enrichiment_Analysis/')
+    if(! dir.exists(PTM_EA_dir)){
+      dir.create(PTM_EA_dir, recursive = T)
+    }
+    KSEA_dir <- paste0(opt$outdir, '/limma/KSEA/')
+    if(! dir.exists(KSEA_dir)){
+      dir.create(KSEA_dir, recursive = T)
+    }
     Log2_phospho_dat=as.data.frame(phospho_dat) %>%
       mutate_if(is.numeric, ~ log2(. ))
     phospho_limma(Log2_DT = Log2_phospho_dat,
              design_matrix = design,
              DE_dir = DE_dir,
-             EA_dir=EA_dir)
+             EA_dir=EA_dir,
+             PTM_EA_dir=PTM_EA_dir)
   }
 } 
 #### HEATMAP ########################################################################
-plot_heatmap(dat)
-if (!is.null(opt$heatmap)) {
-  plot_heatmap_subset(dat,opt$heatmap)
-}
+tryTo('INFO: Plot heatmap',{
+  plot_heatmap(phospho_dat)
+  if (!is.null(opt$heatmap)) {
+    plot_heatmap_subset(dat,opt$heatmap)
+  }
+}, 'ERROR: failed!')
+
+
+###KSEA#############################################################################
+tryTo('INFO: KSEA analysis',{
+  ksea(dir =DE_dir ,outdir = KSEA_dir,substrates_cutoff =5 ,ksea_fdr = 0.05)
+}, 'ERROR: failed!')
+
 
 quit()
 

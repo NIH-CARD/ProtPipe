@@ -1,7 +1,7 @@
-bioc_deps <- c("clusterProfiler", "org.Hs.eg.db", "limma" )
+bioc_deps <- c("clusterProfiler", "org.Hs.eg.db", "limma" ,'STRINGdb','DOSE','enrichplot')
 cran_deps <- c("corrplot", "data.table", "ggplot2", "umap","ggbeeswarm","ggrepel",'ggdendro', 
                "pheatmap", "reshape2", "rlang", "magick",'ecodist',
-               "ggthemes", "dplyr", "tidyr", "foreach") 
+               "ggthemes", "dplyr", "tidyr", "foreach",'eulerr') 
 
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")

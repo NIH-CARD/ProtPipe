@@ -164,10 +164,12 @@ tryTo(paste0('INFO: Writing the standard CSV output '), {
   dat_filter=Buffer_filter(DT = dat_all,output_dir = opt$outdir)
   if (!is.null(opt$condition)){
     tryTo(paste0('INFO: Reading condition file ',opt$condition),{
-      condition_file=read.csv(opt$condition)
+      condition=read.csv(opt$condition)
     }, paste0('ERROR: problem trying to load ', opt$condition, ', does it exist?'))
-  }else{condition=condition=my_adat%>%
-    select(-contains("seq."))}
+  }else{
+    condition=my_adat%>%
+    select(-contains("seq."))
+    }
   
 }, 'ERROR: failed! Check for missing/corrupt headers?')
 
@@ -185,7 +187,7 @@ if(! dir.exists(QC_dir)){
   dir.create(QC_dir, recursive = T)
 }
 ## Get counts of [N=unique gene groups with `Intensity` > 0]
-tryTo('INFO: Tabulating protein group counts',{
+tryTo('INFO: Cabulating protein group counts',{
   pgcounts=dat_filter_long[, .N, by=Sample]
   # Order samples by ascending counts
   ezwrite(x = pgcounts, 
@@ -234,62 +236,68 @@ tryTo('INFO: running UMAP',{
 }, 'ERROR: failed!')
 
 #### DIFFERENTIAL INTENSITY########################################################################
-DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
-if(! dir.exists(DI_dir)){
-  dir.create(DI_dir, recursive = T)
+if (all(is.na(condition$SampleGroup)))  {
+  print('Condition file or adat SampleGroup info needed')
+}else{
+  DI_dir <- paste0(opt$outdir, '/Differential_Intensity/')
+  if(! dir.exists(DI_dir)){
+    dir.create(DI_dir, recursive = T)
+  }
+  
+  EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
+  if(! dir.exists(EA_dir)){
+    dir.create(EA_dir, recursive = T)
+  }
+  tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
+    conditions=na.omit(unique(condition$SampleGroup))
+    for (i in 1:(length(conditions) - 1)) {
+      for (j in (i + 1):length(conditions)) {
+        treat <- conditions[i]
+        control <- conditions[j]
+        print(paste0(treat, ' vs ', control, ' DE analysis'))
+        treatment_sample_names <- intersect(colnames(dat), condition$SampleId[condition$SampleGroup == treat])
+        if (length(treatment_sample_names)==0) {next}
+        control_sample_names <- intersect(colnames(dat), condition$SampleId[condition$SampleGroup == control])
+        t_test <- do_t_test(DT = dat, 
+                            treatment_samples = treatment_sample_names, 
+                            control_samples = control_sample_names)
+        dat_Buffer_Calibrator <- dat_all %>% 
+          select(AptName, Buffer, Calibrator)
+        t_test <- merge(dat_Buffer_Calibrator, t_test, by = "AptName")%>%
+          select(AptName, TargetFullName, Protein_Group, Genes, Buffer, Calibrator, 
+                 treatment_estimate, control_estimate, logFC, P.Value, adj.P.Val)
+        # Rename columns
+        colnames(t_test)[colnames(t_test) == "treatment_estimate"] <- paste0(treat,'_estimate')
+        colnames(t_test)[colnames(t_test) == "control_estimate"] <- paste0(control,'_estimate')
+        
+        ezwrite(t_test[order(t_test$adj.P.Val),], DI_dir, paste0(treat, '_vs_', control, '_ttest.tsv'))
+        soma_plot_volcano(DT.original = t_test,
+                          out_dir =DI_dir ,
+                          output_filename = paste0(treat, '_vs_', control),
+                          lfc_threshold = opt$lfc_threshold,
+                          fdr_threshold = opt$fdr_threshold,
+                          labelgene =opt$labelgene )
+        soma_box_plot(soma_adat = my_adat,
+                      out_dir = DI_dir,
+                      gene = opt$labelgene,
+                      t_test = t_test,
+                      levels = NULL,
+                      color = NULL)
+        
+        enrich_pathway(DT.original = t_test, 
+                       treatment = treat, 
+                       control = control, 
+                       outdir = EA_dir, 
+                       lfc_threshold = opt$lfc_threshold,
+                       fdr_threshold = opt$fdr_threshold,
+                       enrich_pvalue = opt$enrich_pvalue)
+        
+      }
+    }
+  }, 'ERROR: failed!')
+  
 }
 
-EA_dir <- paste0(opt$outdir, '/Enrichiment_Analysis/')
-if(! dir.exists(EA_dir)){
-  dir.create(EA_dir, recursive = T)
-}
-tryTo('INFO: Running differential intensity t-tests and pathway analysis',{
-  conditions=na.omit(unique(condition$SampleGroup))
-  for (i in 1:(length(conditions) - 1)) {
-    for (j in (i + 1):length(conditions)) {
-      treat <- conditions[i]
-      control <- conditions[j]
-      print(paste0(treat, ' vs ', control, ' DE analysis'))
-      treatment_sample_names <- intersect(colnames(dat), condition$SampleId[condition$SampleGroup == treat])
-      if (length(treatment_sample_names)==0) {next}
-      control_sample_names <- intersect(colnames(dat), condition$SampleId[condition$SampleGroup == control])
-      t_test <- do_t_test(DT = dat, 
-                          treatment_samples = treatment_sample_names, 
-                          control_samples = control_sample_names)
-      dat_Buffer_Calibrator <- dat_all %>% 
-        select(AptName, Buffer, Calibrator)
-      t_test <- merge(dat_Buffer_Calibrator, t_test, by = "AptName")%>%
-        select(AptName, TargetFullName, Protein_Group, Genes, Buffer, Calibrator, 
-               treatment_estimate, control_estimate, logFC, P.Value, adj.P.Val)
-      # Rename columns
-      colnames(t_test)[colnames(t_test) == "treatment_estimate"] <- paste0(treat,'_estimate')
-      colnames(t_test)[colnames(t_test) == "control_estimate"] <- paste0(control,'_estimate')
-      
-      ezwrite(t_test[order(t_test$adj.P.Val),], DI_dir, paste0(treat, '_vs_', control, '_ttest.tsv'))
-      soma_plot_volcano(DT.original = t_test,
-                        out_dir =DI_dir ,
-                        output_filename = paste0(treat, '_vs_', control),
-                        lfc_threshold = opt$lfc_threshold,
-                        fdr_threshold = opt$fdr_threshold,
-                        labelgene =opt$labelgene )
-      soma_box_plot(soma_adat = my_adat,
-                    out_dir = DI_dir,
-                    gene = opt$labelgene,
-                    t_test = t_test,
-                    levels = NULL,
-                    color = NULL)
-     
-      enrich_pathway(DT.original = t_test, 
-                     treatment = treat, 
-                     control = control, 
-                     outdir = EA_dir, 
-                     lfc_threshold = opt$lfc_threshold,
-                     fdr_threshold = opt$fdr_threshold,
-                     enrich_pvalue = opt$enrich_pvalue)
-      
-    }
-  }
-}, 'ERROR: failed!')
 #### HEATMAP ########################################################################
 tryTo('INFO: Plot heatmap',{
   soma_plot_heatmap(DT_heatmap = dat,condition_file = condition)

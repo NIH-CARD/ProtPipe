@@ -476,59 +476,90 @@ plot_umap <- function(DT, output_dir, output_filename) {
 }
 
 ## ttest
-do_t_test <- function(DT, treatment_samples, control_samples) {
-  
-  DT_ttest <- data.table(DT)
-  name=names(DT_ttest)[sapply(DT_ttest, function(x) !all(is.numeric(x)))]
-  n_treatment <- length(treatment_samples)
-  n_control <- length(control_samples)
-  
-  # Retain gene info with all treatment and control columns
-  DT_ttest <- DT_ttest[,c(name, treatment_samples, control_samples), with=F]
-  
-  # Convert NA to 0
-  DT_ttest[is.na(DT_ttest)] <- 0
-  
-  # Drop rows (protein groups) with > 50% missingness in samples
-  DT_ttest[,'missing_value':= apply(.SD, 1, function(x) sum(x==0)), .SDcols=c(control_samples,treatment_samples) ]
-  DT_ttest <- DT_ttest[missing_value <= (n_treatment+n_control)/2]
-  DT_ttest[, 'missing_value' := NULL]
-  
-  
-  # Drop rows (protein groups) with 0 variance in treatment OR control group
-  DT_ttest[, 'control_var' := apply(.SD, 1, var), .SDcols=c(control_samples)]
-  DT_ttest[, 'treatment_var' := apply(.SD, 1, var), .SDcols=c(treatment_samples)]
-  DT_ttest <- DT_ttest[control_var != 0]
-  DT_ttest <- DT_ttest[treatment_var != 0]
-  DT_ttest[, c('control_var','treatment_var') := NULL]
-  
-  # Perform t-test  on treatment and control columns
-  t_test <- apply(DT_ttest[, !name, with = FALSE], 1, function(x){
-    a =factor(c(rep('treatment',n_treatment),
-                rep("control",n_control)),
-              levels = c('treatment',"control"))
-    fvalue=var.test(x~a)
-    if (!is.na(fvalue$p.value)){ 
-      if (fvalue$p.value > 0.05){
-        result <- t.test(x~a, var.equal = T)
-      } else {
-        result <- t.test(x~a, var.equal = F)
-      }
+do_t_test = function(DT,col, design_matrix,DE_dir,EA_dir) {
+  DT <- data.frame(DT)
+  name=names(DT)[sapply(DT, function(x) !all(is.numeric(x)))]
+  #comparation
+  conditions <- unique(design_matrix$condition)
+  for (treatment in conditions) {
+    controls=unique(design_matrix$control[design_matrix$condition==treatment])
+    for (control in controls) {
+      print(paste0(treatment, ' vs ', control, ' Differential Analysis by ttest '))
+      treatment_samples=grep(treatment,colnames(DT),value = T)
+      control_samples=grep(control,colnames(DT),value = T)
+      n_treatment <- length(treatment_samples)
+      n_control <- length(control_samples)
+      #ttest table
+      # Initial data transformation
+      DT_ttest <- DT[,c(col, treatment_samples, control_samples)]
+      
+      # Convert NA to 0 and add missing value calculations
+      DT_ttest <- DT_ttest %>%
+        # Convert NA to 0
+        mutate(across(where(is.numeric), ~ coalesce(., 0))) %>%
+        # Calculate missing values
+        mutate(
+          missing_value = rowSums(select(., -col) == 0),  # Total missing values per row, excluding PTM column
+          missing_value_c = rowSums(select(., all_of(control_samples)) == 0),  # Missing values in control samples per row
+          missing_value_t = rowSums(select(., all_of(treatment_samples)) == 0)  # Missing values in treatment samples per row
+        ) %>%
+        # Filter missing values
+        filter(
+          !(missing_value_t > (n_treatment / 2) & missing_value_t < n_treatment),
+          !(missing_value_c > (n_control / 2) & missing_value_c < n_control),
+          missing_value != (n_treatment + n_control)
+        ) %>%
+        # Select relevant columns
+        select(-missing_value, -missing_value_c, -missing_value_t)%>%
+        as.data.frame()
+      # Restore row names from PTM column and remove the PTM column
+      rownames(DT_ttest) <- DT_ttest[,col]
+      DT_ttest[,col]=NULL
+      
+      # Perform t-test  on treatment and control columns
+      t_test <- apply(DT_ttest, 1, function(x){
+        a =factor(c(rep('treatment',n_treatment),
+                    rep("control",n_control)),
+                  levels = c('treatment',"control"))
+        fvalue=var.test(x~a)
+        if (!is.na(fvalue$p.value)){ 
+          if (fvalue$p.value > 0.05){
+            result <- t.test(x~a, var.equal = T)
+          }else{
+            result <- t.test(x~a, var.equal = F)
+          }
+        }
+        treatment_estimate <- as.numeric(unlist(result$estimate[1]))
+        control_estimate <- as.numeric(unlist(result$estimate[2]))
+        return(data.table('P.Value'=result$p.value,
+                          'treatment_estimate'=treatment_estimate,
+                          'control_estimate'=control_estimate)
+        )
+      })
+      t_test <- rbindlist(t_test)
+      result_ttest <- cbind(DT_ttest, t_test) 
+      # Merge DT and result_ttest based on PTM column
+      result_ttest <- merge(DT[, name, drop=FALSE], result_ttest, by.x=col, by.y='row.names')
+      # Calculate logFC and adjust P-values using dplyr
+      result_ttest <- result_ttest %>%
+        mutate(logFC = log2((treatment_estimate+1) / (control_estimate + 1)),
+               adj.P.Val = p.adjust(P.Value, method='BH'))
+      ezwrite(result_ttest[order(result_ttest$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
+      plot_volcano(DT.original =result_ttest , 
+                   lfc_threshold = opt$lfc_threshold,
+                   fdr_threshold = opt$fdr_threshold,
+                   out_dir = DE_dir,label_col = 'Genes',
+                   output_filename =paste0(treatment, '_vs_', control, '_ttest'),
+                   labelgene = opt$labelgene)
+      enrich_pathway(DT.original = result_ttest,
+                     treatment = treatment,
+                     control = control,
+                     outdir = EA_dir,
+                     lfc_threshold = opt$lfc_threshold,
+                     fdr_threshold = opt$fdr_threshold,
+                     enrich_pvalue = opt$enrich_pvalue)
     }
-    treatment_estimate <- as.numeric(unlist(result$estimate[1]))
-    control_estimate <- as.numeric(unlist(result$estimate[2]))
-    return(data.table('P.Value'=result$p.value,
-                      'treatment_estimate'=treatment_estimate,
-                      'control_estimate'=control_estimate)
-    )
-  })
-  
-  
-  t_test <- rbindlist(t_test)
-  t_test <- cbind(DT_ttest[, ..name], t_test)   # add back protein group / gene info cols
-  t_test[, logFC := log2(treatment_estimate / (control_estimate+1))]
-  t_test[, adj.P.Val := p.adjust(P.Value, method='BH')]
-  return(t_test[])
+  }
 }
 
 ## plot_volcano
@@ -544,27 +575,31 @@ plot_volcano <- function(DT.original, out_dir, output_filename, label_col ,lfc_t
            Group = if_else(adj.P.Val >= fdr_threshold, 'Others', Group),
            labeltext = '')
   
-  # Select top 5 genes for UP and DOWN groups
-  top5_gene <- DT %>%
-    filter(Group == 'UP') %>%
-    arrange(desc(logFC)) %>%
-    slice_head(n = 5) %>%
-    bind_rows(
-      DT %>%
-        filter(Group == 'DOWN') %>%
-        arrange(logFC) %>%
-        slice_head(n = 5)
-    )
-  
-  # Label top 5 genes using the specified label column
-  DT <- DT %>%
-    mutate(labeltext = if_else(!!sym(label_col) %in% top5_gene[[label_col]], !!sym(label_col), ''))
-  
   # If labelgene is provided, update labeltext accordingly
   if (!is.null(labelgene)) {
+    label_gene=fread(labelgene)
     DT <- DT %>%
-      mutate(labeltext = if_else(!!sym(label_col) %in% labelgene, !!sym(label_col), labeltext))
+      mutate(labeltext = if_else(!!sym(label_col) %in% label_gene$gene, !!sym(label_col), labeltext))
+  } else{
+    # Select top 5 genes for UP and DOWN groups
+    top5_gene <- DT %>%
+      filter(Group == 'UP') %>%
+      arrange(desc(logFC)) %>%
+      slice_head(n = 5) %>%
+      bind_rows(
+        DT %>%
+          filter(Group == 'DOWN') %>%
+          arrange(logFC) %>%
+          slice_head(n = 5)
+      )
+    
+    # Label top 5 genes using the specified label column
+    DT <- DT %>%
+      mutate(labeltext = if_else(!!sym(label_col) %in% top5_gene[[label_col]], !!sym(label_col), ''))
   }
+  
+  
+  
   
   g <- ggplot(DT, aes(x = logFC, y = -log10(adj.P.Val))) +
     geom_point(aes(color = Group)) +
@@ -585,7 +620,7 @@ plot_volcano <- function(DT.original, out_dir, output_filename, label_col ,lfc_t
   
   cat(paste0(out_dir, output_filename,'_vocanol.pdf'))
   ggsave(g, filename = paste0(out_dir, output_filename,'_vocanol.pdf'), width = 8, height = 8)
-  cat(paste0('   -> ', output_dir, output_filename,'_vocanol.pdf', '\n'))
+  cat(paste0('   -> ', out_dir, output_filename,'_vocanol.pdf', '\n'))
 }
 
 plot_volcano_pep <- function(DT.original, treatment, control, log_base, lfc_threshold, fdr_threshold, out_dir, labelgene) {
@@ -652,7 +687,7 @@ plot_volcano_from_raw <- function(DT.original, treatment, control, log_base, lfc
   cat(paste0('   -> ', output_dir, output_filename, '\n'))
 }
 
-###ttest pathway analysis
+###pathway analysis
 enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold, fdr_threshold, enrich_pvalue){
   ##create dir
   dir=paste0(outdir,'/', treatment, '_vs_', control)
@@ -719,11 +754,9 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
       ggsave(paste0(dir,'/', 'gseKEGG_emap.pdf'),p,width = 10,height = 10)
       cat(paste0('   -> ', dir,'/', 'gseKEGG_emap.pdf', '\n'))
       gse_res=rbind(gseKEGG_res,gseGO_res)
-      write.csv(gse_res,paste0(dir,'/',  'gse_res.csv'))
+      write.csv(gse_res,paste0(dir,'/',  'gse_res.csv'),row.names = F)
     }else{
       print("No enriched pathways found in the Gene Set Enrichment Analysis analysis")}
-    
-    
     }
 }
 
@@ -853,11 +886,20 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', out_prefix = NULL, wi
   } else {
     print("No enriched pathways found in the KEGG object.")}
   print('Save enrichment analysis results')
-  GO_res$category=''
-  GO_res$subcategory=''
-  KEGG_res$ONTOLOGY="KEGG"
-  enrich_res=rbind(GO_res,KEGG_res)
-  ezwrite(enrich_res, outdir, paste0(out_prefix,'_enrich_res.csv'))
+  if (nrow(KEGG_res) > 0 &nrow(GO_res) > 0) {
+    GO_res$category=''
+    GO_res$subcategory=''
+    KEGG_res$ONTOLOGY="KEGG"
+    enrich_res=rbind(GO_res,KEGG_res)
+    ezwrite(enrich_res, outdir, paste0(out_prefix,'_enrich_res.tsv'))
+  }
+  if((nrow(KEGG_res) == 0)){
+    ezwrite(GO_res, outdir, paste0(out_prefix,'_enrich_res.tsv'))
+  }
+  if((nrow(GO_res) == 0)){
+    ezwrite(KEGG_res, outdir, paste0(out_prefix,'_enrich_res.tsv'))
+  }
+  
 }
 
 ##limma
@@ -870,84 +912,94 @@ do_limma=function(Log2_DT, design_matrix,DE_dir,EA_dir,lfc_threshold,fdr_thresho
   #comparation
   conditions <- unique(design_matrix$condition)
   for (treatment in conditions) {
-    control=unique(design_matrix$control[design_matrix$condition==treatment])
-    print(paste0(treatment, ' vs ', control, ' Differential Analysis by Limma '))
-    treatment_samples=grep(treatment,colnames(Log2_DT),value = T)
-    control_samples=grep(control,colnames(Log2_DT),value = T)
-    DT_limma <- Log2_DT[,c(treatment_samples, control_samples)]
-    n_treatment <- length(treatment_samples)
-    n_control <- length(control_samples)
-    # Convert NA to 0
-    DT_limma[is.na(DT_limma)] <- 0
-    if (n_treatment>3&n_control>3) {
-      # Drop rows (protein groups) with > 50% missingness in samples
-      DT_limma$missing_value= apply(DT_limma, 1, function(x) sum(x==0))
-      DT_limma$missing_value_c= apply(DT_limma[,control_samples], 1, function(x) sum(x==0))
-      DT_limma$missing_value_t= apply(DT_limma[,treatment_samples], 1, function(x) sum(x==0))
-      DT_limma <- DT_limma[!(DT_limma$missing_value_t >(n_treatment/2)&DT_limma$missing_value_t < n_treatment),]
-      DT_limma <- DT_limma[!(DT_limma$missing_value_c >(n_control/2)&DT_limma$missing_value_c <n_control),]
-      DT_limma <- DT_limma[DT_limma$missing_value != (n_treatment+n_control),]
-      DT_limma[,grep('missing_value',colnames(DT_limma))]=NULL
+    controls=unique(design_matrix$control[design_matrix$condition==treatment])
+    for (control in controls) {
+      print(paste0(treatment, ' vs ', control, ' Differential Analysis by Limma '))
+      treatment_samples=grep(treatment,colnames(Log2_DT),value = T)
+      control_samples=grep(control,colnames(Log2_DT),value = T)
+      DT_limma <- Log2_DT[,c(treatment_samples, control_samples)]
+      n_treatment <- length(treatment_samples)
+      n_control <- length(control_samples)
+      # Convert NA to 0
+      DT_limma[is.na(DT_limma)] <- 0
+      if (n_treatment>3&n_control>3) {
+        # Drop rows (protein groups) with > 50% missingness in samples
+        DT_limma$missing_value= apply(DT_limma, 1, function(x) sum(x==0))
+        DT_limma$missing_value_c= apply(DT_limma[,control_samples], 1, function(x) sum(x==0))
+        DT_limma$missing_value_t= apply(DT_limma[,treatment_samples], 1, function(x) sum(x==0))
+        DT_limma <- DT_limma[!(DT_limma$missing_value_t >(n_treatment/2)&DT_limma$missing_value_t < n_treatment),]
+        DT_limma <- DT_limma[!(DT_limma$missing_value_c >(n_control/2)&DT_limma$missing_value_c <n_control),]
+        DT_limma <- DT_limma[DT_limma$missing_value != (n_treatment+n_control),]
+        DT_limma[,grep('missing_value',colnames(DT_limma))]=NULL
+        
+      } else{
+        # Drop rows (protein groups) with missingness in samples
+        DT_limma$missing_value= apply(DT_limma, 1, function(x) sum(x==0))
+        DT_limma$missing_value_c= apply(DT_limma[,control_samples], 1, function(x) sum(x==0))
+        DT_limma$missing_value_t= apply(DT_limma[,treatment_samples], 1, function(x) sum(x==0))
+        DT_limma <- DT_limma[DT_limma$missing_value_t %in% c(0,n_treatment),]
+        DT_limma <- DT_limma[DT_limma$missing_value_c %in% c(0,n_control),]
+        DT_limma <- DT_limma[DT_limma$missing_value != (n_treatment+n_control),]
+        DT_limma[,grep('missing_value',colnames(DT_limma))]=NULL
+        
+      }
       
-    } else{
-      # Drop rows (protein groups) with missingness in samples
-      DT_limma$missing_value= apply(DT_limma, 1, function(x) sum(x==0))
-      DT_limma$missing_value_c= apply(DT_limma[,control_samples], 1, function(x) sum(x==0))
-      DT_limma$missing_value_t= apply(DT_limma[,treatment_samples], 1, function(x) sum(x==0))
-      DT_limma <- DT_limma[DT_limma$missing_value_t %in% c(0,n_treatment),]
-      DT_limma <- DT_limma[DT_limma$missing_value_c %in% c(0,n_control),]
-      DT_limma <- DT_limma[DT_limma$missing_value != (n_treatment+n_control),]
-      DT_limma[,grep('missing_value',colnames(DT_limma))]=NULL
       
-    }
+      
+      #design
+      
+      group_list <- factor(c(rep('treatment',n_treatment),
+                             rep("control",n_control)),
+                           levels = c('treatment',"control"))
+      limma_design <- model.matrix(~0+group_list)
+      colnames(limma_design) <- levels(group_list)
+      rownames(limma_design) <- colnames(DT_limma)
+      cont.matrix <- makeContrasts(contrasts = paste0(unique(group_list),collapse = "-"),levels = limma_design)
+      
+      #limma
+      fit <- lmFit(DT_limma, limma_design)
+      fit2 <- contrasts.fit(fit, cont.matrix)
+      fit2 <- eBayes(fit2, trend=TRUE)
+      
+      result_limma <- topTable(fit2, coef=1,n=Inf)
+      result_limma=merge(Log2_DT[,c(name,treatment_samples, control_samples)],result_limma,by.x='Protein_Group',by.y=0)
+      ezwrite(result_limma[order(result_limma$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
+      plot_volcano(DT.original = result_limma,
+                   out_dir = DE_dir,
+                   output_filename = paste0(treatment, '_vs_', control, '_limma'),
+                   label_col = 'Genes',
+                   lfc_threshold =opt$lfc_threshold, 
+                   fdr_threshold = opt$fdr_threshold, 
+                   labelgene =  opt$labelgene)
+      enrich_pathway(DT.original = result_limma,
+                     treatment = treatment,
+                     control = control,
+                     outdir = EA_dir,
+                     lfc_threshold = lfc_threshold,
+                     fdr_threshold = fdr_threshold,
+                     enrich_pvalue = enrich_pvalue)
     
-    
-    
-    #design
-    
-    group_list <- factor(c(rep('treatment',n_treatment),
-                           rep("control",n_control)),
-                         levels = c('treatment',"control"))
-    limma_design <- model.matrix(~0+group_list)
-    colnames(limma_design) <- levels(group_list)
-    rownames(limma_design) <- colnames(DT_limma)
-    cont.matrix <- makeContrasts(contrasts = paste0(unique(group_list),collapse = "-"),levels = limma_design)
-    
-    #limma
-    fit <- lmFit(DT_limma, limma_design)
-    fit2 <- contrasts.fit(fit, cont.matrix)
-    fit2 <- eBayes(fit2, trend=TRUE)
-    
-    result_limma <- topTable(fit2, coef=1,n=Inf)
-    result_limma=merge(Log2_DT[,c(name,treatment_samples, control_samples)],result_limma,by.x='Protein_Group',by.y=0)
-    ezwrite(result_limma[order(result_limma$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
-    plot_volcano(DT.original = result_limma,
-                 out_dir = DE_dir,
-                 output_filename = paste0(treatment, '_vs_', control, '_limma'),
-                 label_col = 'Genes',
-                 lfc_threshold =opt$lfc_threshold, 
-                 fdr_threshold = opt$fdr_threshold, 
-                 labelgene =  opt$labelgene)
-    enrich_pathway(DT.original = result_limma,
-                   treatment = treatment,
-                   control = control,
-                   outdir = EA_dir,
-                   lfc_threshold = lfc_threshold,
-                   fdr_threshold = fdr_threshold,
-                   enrich_pvalue = enrich_pvalue)
+  }
   }
 }
 
 
 
 ##heatmap
-plot_heatmap <- function(DT_heatmap) {
-  sample_anno <- data.frame(condition = as.factor(sort(colnames(DT_heatmap)[3:ncol(DT_heatmap)])))
+plot_heatmap <- function(DT) {
+  DT_heatmap <- DT %>%
+    select_if(is.numeric)%>%
+    # Replace NA values with 0
+    mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
+    # Filter rows where the sum of numeric values is greater than 0
+    filter(rowSums(.) > 0)
+  
+  sample_anno <- data.frame(condition = as.factor(sort(names(DT)[sapply(DT, function(x) all(is.numeric(x)))])))
   row.names(sample_anno) <- sample_anno$condition
   sample_anno$condition=gsub("_[0-9]*$","",sample_anno$condition)
   DT_heatmap[is.na(DT_heatmap)]=0
-  pheatmap(log2(DT_heatmap[,3:ncol(DT_heatmap)]+1),
-           scale='row',
+  pheatmap(log2(DT_heatmap+1),
+           scale='column',
            show_rownames = F,
            annotation_col = sample_anno,
            cluster_cols = F,
@@ -966,7 +1018,7 @@ plot_heatmap_subset <- function(DT_heatmap,gene) {
   rownames(subset_DT)=subset_DT$Genes
   
   pheatmap(log2(subset_DT[,3:ncol(subset_DT)]+1),
-           scale='row',
+           scale='column',
            show_rownames = T,
            annotation_col = sample_anno,
            cluster_cols = F,
@@ -1113,12 +1165,13 @@ plot_PPI_ven <- function(protein,t_test,lfc_threshold, fdr_threshold, output_dir
 
 #mhcflurry########
 get_mhcflurry_input=function(hla_typing,dat.long,sample,MHC_dir){
-    print(paste0("Generate the MHCflurry input file of ",sample))
-    sample_allele=hla_typing[hla_typing$sample_name==sample,]
-    sample_pep=dat.long[grep(sample,dat.long$Sample),]
-    sample_pep$lengh=nchar(sample_pep$Peptide_Sequence)
-    sample_pep=sample_pep[sample_pep$lengh<16,]
-    sample_allele_peptide=data.frame()
+  print(paste0("Generate the MHCflurry input file of ",sample))
+  dat.long$Peptide_Sequence=gsub('_|_.[0-9]','',dat.long$Peptide_Sequence)
+  sample_allele=hla_typing[hla_typing$sample_name==sample,]
+  sample_pep=dat.long[grep(sample,dat.long$Sample),]
+  sample_pep$lengh=nchar(sample_pep$Peptide_Sequence)
+  sample_pep=sample_pep[sample_pep$lengh<16,]
+  sample_allele_peptide=data.frame()
 
     for (allele in sample_allele$allele) {
         tmp <- data.frame('allele' = allele,
@@ -1348,8 +1401,11 @@ phospho_standardize_format = function(DT) {
   if ('EG.PrecursorId' %in% colnames(DT)) {
     setnames(DT, 'EG.PrecursorId', 'Precursor')
   }
+  if ('PEP.StrippedSequence' %in% colnames(DT)) {
+    setnames(DT, 'PEP.StrippedSequence', 'Stripped_Sequence')
+  }
   DT=as.data.frame(DT)
-  DT=DT[,grep('Protein_Group|Genes|PTM_Location|Precursor|Modified_Sequence|raw',colnames(DT))]
+  DT=DT[,grep('Protein_Group|Genes|PTM_Location|Precursor|Modified_Sequence|Stripped_Sequence|raw',colnames(DT))]
   # Remove trailing file extensions
   extensions = '.mzML$|.mzml$|.RAW$|.raw$|.dia$|.DIA$|_Intensity|.raw.*| \\([^()]*\\)'
   extension_samplenames =  colnames(DT)[colnames(DT) %like% extensions]
@@ -1359,6 +1415,29 @@ phospho_standardize_format = function(DT) {
   colnames_out = gsub(pattern="\\[.*\\] ", replacement='', x=colnames(DT))
   setnames(DT, colnames_out)
   return(DT[])
+}
+
+plot_phospho_enrichment = function(DT_total,DT_phospho, output_dir,height,width) {
+  counts_1=DT_total[, .N, by=Sample]
+  counts_1$class='Total'
+  counts_2=DT_phospho[, .N, by=Sample]
+  counts_2$class='Phospho'
+  count=rbind(counts_1,counts_2)
+  p=ggplot(count, aes(x=Sample, y=N,fill=class)) +
+    geom_bar(stat="identity",position = position_dodge(width = 0))+
+    theme_classic()+
+    labs(fill = "",x="",y='Number of Peptide')+
+    scale_x_discrete(guide = guide_axis(angle = 90))
+  ggsave(plot = p,filename = paste0(output_dir,'/','phospho_enrich_peptide_count.pdf'),height=height,width = width)
+  percentage=data.frame(sample=counts_1$Sample,
+                        percent=counts_2$N/counts_1$N*100)
+  ezwrite(percentage,output_dir,'phospho_enrich_percentage.tsv')
+  p=ggplot(percentage, aes(x=sample, y=percent)) +
+    geom_bar(stat="identity", fill="#67a9cf")+
+    theme_classic()+
+    labs(fill = "",x="",y='Phospho Percentage %')+
+    scale_x_discrete(guide = guide_axis(angle = 90))
+  ggsave(plot = p,filename = paste0(output_dir,'/','phospho_enrich_percentage','.pdf'),height=height,width = width)
 }
 
 ##plot phospho site counts
@@ -1386,7 +1465,6 @@ plot_phospho_site_counts = function(DT_phospho_long, output_dir,height,width) {
                   position=position_dodge(.9))+
     labs(fill = "",x="",y='Number of Phospho-sites')+
     scale_x_discrete(guide = guide_axis(angle = 90))
-  p
   ggsave(plot = p,filename = paste0(output_dir,'/','phospho_sites_number_sd','.pdf'),height=5,width = 4)
   cat(paste0('   -> ', output_dir, '/','phospho_sites_number_sd','.pdf', '\n'))
 }
@@ -1421,157 +1499,324 @@ plot_phospho_site_intensity = function(DT_phospho_long, output_dir) {
 
 ##phospho site DE analysis
 #ttest
-phospho_ttest = function(DT, design_matrix,DE_dir,EA_dir) {
+phospho_ttest = function(DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
   name=names(DT)[sapply(DT, function(x) !all(is.numeric(x)))]
   rownames(DT)=DT$PTM
   #comparation
   conditions <- unique(design_matrix$condition)
   for (treatment in conditions) {
-    control=unique(design_matrix$control[design_matrix$condition==treatment])
-    print(paste0(treatment, ' vs ', control, ' Differential Analysis by ttest '))
-    treatment_samples=grep(treatment,colnames(DT),value = T)
-    control_samples=grep(control,colnames(DT),value = T)
-    n_treatment <- length(treatment_samples)
-    n_control <- length(control_samples)
-    #ttest table
-    # Initial data transformation
-    DT_ttest <- DT[,c("PTM", treatment_samples, control_samples)]
-    
-    # Convert NA to 0 and add missing value calculations
-    DT_ttest <- DT_ttest %>%
-      # Convert NA to 0
-      mutate(across(where(is.numeric), ~ coalesce(., 0))) %>%
-      # Calculate missing values
-      mutate(
-        missing_value = rowSums(select(., -PTM) == 0),  # Total missing values per row, excluding PTM column
-        missing_value_c = rowSums(select(., all_of(control_samples)) == 0),  # Missing values in control samples per row
-        missing_value_t = rowSums(select(., all_of(treatment_samples)) == 0)  # Missing values in treatment samples per row
-      ) %>%
-      # Filter missing values
-      filter(
-        !(missing_value_t > (n_treatment / 2) & missing_value_t < n_treatment),
-        !(missing_value_c > (n_control / 2) & missing_value_c < n_control),
-        missing_value != (n_treatment + n_control)
-      ) %>%
-      # Select relevant columns
-      select(-missing_value, -missing_value_c, -missing_value_t)%>%
-      as.data.frame()
-    # Restore row names from PTM column and remove the PTM column
-    rownames(DT_ttest) <- DT_ttest$PTM
-    DT_ttest <- DT_ttest %>% select(-PTM)
-    # Perform t-test  on treatment and control columns
-    t_test <- apply(DT_ttest, 1, function(x){
-      a =factor(c(rep('treatment',n_treatment),
-                  rep("control",n_control)),
-                levels = c('treatment',"control"))
-      fvalue=var.test(x~a)
-      if (!is.na(fvalue$p.value)){ 
-        if (fvalue$p.value > 0.05){
-          result <- t.test(x~a, var.equal = T)
-        }else{
-          result <- t.test(x~a, var.equal = F)
+    controls=unique(design_matrix$control[design_matrix$condition==treatment])
+    for (control in controls) {
+      print(paste0(treatment, ' vs ', control, ' Differential Analysis by ttest '))
+      treatment_samples=grep(treatment,colnames(DT),value = T)
+      control_samples=grep(control,colnames(DT),value = T)
+      n_treatment <- length(treatment_samples)
+      n_control <- length(control_samples)
+      #ttest table
+      # Initial data transformation
+      DT_ttest <- DT[,c("PTM", treatment_samples, control_samples)]
+      
+      # Convert NA to 0 and add missing value calculations
+      DT_ttest <- DT_ttest %>%
+        # Convert NA to 0
+        mutate(across(where(is.numeric), ~ coalesce(., 0))) %>%
+        # Calculate missing values
+        mutate(
+          missing_value = rowSums(select(., -PTM) == 0),  # Total missing values per row, excluding PTM column
+          missing_value_c = rowSums(select(., all_of(control_samples)) == 0),  # Missing values in control samples per row
+          missing_value_t = rowSums(select(., all_of(treatment_samples)) == 0)  # Missing values in treatment samples per row
+        ) %>%
+        # Filter missing values
+        filter(
+          !(missing_value_t > (n_treatment / 2) & missing_value_t < n_treatment),
+          !(missing_value_c > (n_control / 2) & missing_value_c < n_control),
+          missing_value != (n_treatment + n_control)
+        ) %>%
+        # Select relevant columns
+        select(-missing_value, -missing_value_c, -missing_value_t)%>%
+        as.data.frame()
+      # Restore row names from PTM column and remove the PTM column
+      rownames(DT_ttest) <- DT_ttest$PTM
+      DT_ttest <- DT_ttest %>% select(-PTM)
+      # Perform t-test  on treatment and control columns
+      t_test <- apply(DT_ttest, 1, function(x){
+        a =factor(c(rep('treatment',n_treatment),
+                    rep("control",n_control)),
+                  levels = c('treatment',"control"))
+        fvalue=var.test(x~a)
+        if (!is.na(fvalue$p.value)){ 
+          if (fvalue$p.value > 0.05){
+            result <- t.test(x~a, var.equal = T)
+          }else{
+            result <- t.test(x~a, var.equal = F)
+          }
         }
-      }
-      treatment_estimate <- as.numeric(unlist(result$estimate[1]))
-      control_estimate <- as.numeric(unlist(result$estimate[2]))
-      return(data.table('P.Value'=result$p.value,
-                        'treatment_estimate'=treatment_estimate,
-                        'control_estimate'=control_estimate)
-      )
-    })
-    t_test <- rbindlist(t_test)
-    result_ttest <- cbind(DT_ttest, t_test) 
-    # Merge DT and result_ttest based on PTM column
-    result_ttest <- merge(DT[, name, drop=FALSE], result_ttest, by.x='PTM', by.y='row.names')
-    # Calculate logFC and adjust P-values using dplyr
-    result_ttest <- result_ttest %>%
-      mutate(logFC = log2((treatment_estimate+1) / (control_estimate + 1)),
-             adj.P.Val = p.adjust(P.Value, method='BH'))
-    ezwrite(result_ttest[order(result_ttest$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
-    plot_volcano(DT.original =result_ttest , 
-                 lfc_threshold = opt$lfc_threshold,
-                 fdr_threshold = opt$fdr_threshold,
-                 out_dir = DE_dir,label_col = 'PTM',
-                 output_filename =paste0(treatment, '_vs_', control, '_ttest'),
-                 labelgene = opt$labelgene)
-    enrich_pathway(DT.original = result_ttest,
-                   treatment = treatment,
-                   control = control,
-                   outdir = EA_dir,
+        treatment_estimate <- as.numeric(unlist(result$estimate[1]))
+        control_estimate <- as.numeric(unlist(result$estimate[2]))
+        return(data.table('P.Value'=result$p.value,
+                          'treatment_estimate'=treatment_estimate,
+                          'control_estimate'=control_estimate)
+        )
+      })
+      t_test <- rbindlist(t_test)
+      result_ttest <- cbind(DT_ttest, t_test) 
+      # Merge DT and result_ttest based on PTM column
+      result_ttest <- merge(DT[, name, drop=FALSE], result_ttest, by.x='PTM', by.y='row.names')
+      # Calculate logFC and adjust P-values using dplyr
+      result_ttest <- result_ttest %>%
+        mutate(logFC = log2((treatment_estimate+1) / (control_estimate + 1)),
+               adj.P.Val = p.adjust(P.Value, method='BH'))
+      ezwrite(result_ttest[order(result_ttest$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
+      plot_volcano(DT.original =result_ttest , 
                    lfc_threshold = opt$lfc_threshold,
                    fdr_threshold = opt$fdr_threshold,
-                   enrich_pvalue = opt$enrich_pvalue)
-    
+                   out_dir = DE_dir,label_col = 'PTM',
+                   output_filename =paste0(treatment, '_vs_', control, '_ttest'),
+                   labelgene = opt$labelgene)
+      enrich_pathway(DT.original = result_ttest,
+                     treatment = treatment,
+                     control = control,
+                     outdir = EA_dir,
+                     lfc_threshold = opt$lfc_threshold,
+                     fdr_threshold = opt$fdr_threshold,
+                     enrich_pvalue = opt$enrich_pvalue)
+      PTM_EA(DT.original = result_ttest,
+             treatment = treatment,
+             control = control,
+             outdir = PTM_EA_dir,
+             lfc_threshold = opt$lfc_threshold,
+             fdr_threshold = opt$fdr_threshold,
+             enrich_pvalue = opt$enrich_pvalue)
+    }
   }
 }
 
 
 #limma
-phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir) {
+phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
   name=names(Log2_DT)[sapply(Log2_DT, function(x) !all(is.numeric(x)))]
   rownames(Log2_DT)=Log2_DT$PTM
   #comparation
   conditions <- unique(design_matrix$condition)
   for (treatment in conditions) {
-    control=unique(design_matrix$control[design_matrix$condition==treatment])
-    print(paste0(treatment, ' vs ', control, ' Differential Analysis by Limma '))
-    treatment_samples=grep(treatment,colnames(Log2_DT),value = T)
-    control_samples=grep(control,colnames(Log2_DT),value = T)
-    n_treatment <- length(treatment_samples)
-    n_control <- length(control_samples)
-    
-    #DT_limma
-    DT_limma <- Log2_DT[,c(treatment_samples, control_samples)]
-    DT_limma <- DT_limma %>%
-      # Convert NA to 0
-      mutate(across(where(is.numeric), ~ coalesce(., 0))) %>%
-      #missing value
-      mutate(
-        missing_value = rowSums(. == 0),  # Total missing values per row
-        missing_value_c = rowSums(select(., all_of(control_samples)) == 0),  # Missing values in control samples per row
-        missing_value_t = rowSums(select(., all_of(treatment_samples)) == 0)  # Missing values in treatment samples per row
-      ) %>%
-      #fillter missing value more than 50%, but keep all missing
-      filter(
-        !(missing_value_t > (n_treatment / 2) & missing_value_t < n_treatment),
-        !(missing_value_c > (n_control / 2) & missing_value_c < n_control),
-        missing_value != (n_treatment + n_control)
-      ) %>%
-      select(-missing_value, -missing_value_c, -missing_value_t)
-    
-    #design
-    group_list <- factor(c(rep('treatment',n_treatment),
-                           rep("control",n_control)),
-                         levels = c('treatment',"control"))
-    limma_design <- model.matrix(~0+group_list)
-    colnames(limma_design) <- levels(group_list)
-    rownames(limma_design) <- colnames(DT_limma)
-    cont.matrix <- makeContrasts(contrasts = paste0(unique(group_list),collapse = "-"),levels = limma_design)
-    #limma
-    fit <- lmFit(DT_limma, limma_design)
-    fit2 <- contrasts.fit(fit, cont.matrix)
-    fit2 <- eBayes(fit2, trend=TRUE)
-    
-    result_limma <- topTable(fit2, coef=1,n=Inf)
-    result_limma=merge(Log2_DT[,c(name,treatment_samples, control_samples)],result_limma,by.x='PTM',by.y=0)
-    ezwrite(result_limma[order(result_limma$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
-    plot_volcano(DT.original =result_limma , 
-                 lfc_threshold = opt$lfc_threshold,
-                 fdr_threshold = opt$fdr_threshold,
-                 out_dir = DE_dir,label_col = 'PTM',
-                 output_filename =paste0(treatment, '_vs_', control, '_limma'),
-                 labelgene = opt$labelgene)
-    enrich_pathway(DT.original = result_limma,
-                   treatment = treatment,
-                   control = control,
-                   outdir = EA_dir,
+    controls=unique(design_matrix$control[design_matrix$condition==treatment])
+    for ( control in controls) {
+      print(paste0(treatment, ' vs ', control, ' Differential Analysis by Limma '))
+      treatment_samples=grep(treatment,colnames(Log2_DT),value = T)
+      control_samples=grep(control,colnames(Log2_DT),value = T)
+      n_treatment <- length(treatment_samples)
+      n_control <- length(control_samples)
+      
+      #DT_limma
+      DT_limma <- Log2_DT[,c(treatment_samples, control_samples)]
+      DT_limma <- DT_limma %>%
+        # Convert NA to 0
+        mutate(across(where(is.numeric), ~ coalesce(., 0))) %>%
+        #missing value
+        mutate(
+          missing_value = rowSums(. == 0),  # Total missing values per row
+          missing_value_c = rowSums(select(., all_of(control_samples)) == 0),  # Missing values in control samples per row
+          missing_value_t = rowSums(select(., all_of(treatment_samples)) == 0)  # Missing values in treatment samples per row
+        ) %>%
+        #fillter missing value more than 50%, but keep all missing
+        filter(
+          !(missing_value_t > (n_treatment / 2) & missing_value_t < n_treatment),
+          !(missing_value_c > (n_control / 2) & missing_value_c < n_control),
+          missing_value != (n_treatment + n_control)
+        ) %>%
+        select(-missing_value, -missing_value_c, -missing_value_t)
+      
+      #design
+      group_list <- factor(c(rep('treatment',n_treatment),
+                             rep("control",n_control)),
+                           levels = c('treatment',"control"))
+      limma_design <- model.matrix(~0+group_list)
+      colnames(limma_design) <- levels(group_list)
+      rownames(limma_design) <- colnames(DT_limma)
+      cont.matrix <- makeContrasts(contrasts = paste0(unique(group_list),collapse = "-"),levels = limma_design)
+      #limma
+      fit <- lmFit(DT_limma, limma_design)
+      fit2 <- contrasts.fit(fit, cont.matrix)
+      fit2 <- eBayes(fit2, trend=TRUE)
+      
+      result_limma <- topTable(fit2, coef=1,n=Inf)
+      result_limma=merge(Log2_DT[,c(name,treatment_samples, control_samples)],result_limma,by.x='PTM',by.y=0)
+      ezwrite(result_limma[order(result_limma$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '_limma.tsv'))
+      plot_volcano(DT.original =result_limma , 
                    lfc_threshold = opt$lfc_threshold,
                    fdr_threshold = opt$fdr_threshold,
-                   enrich_pvalue = opt$enrich_pvalue)
+                   out_dir = DE_dir,label_col = 'PTM',
+                   output_filename =paste0(treatment, '_vs_', control, '_limma'),
+                   labelgene = opt$labelgene)
+      enrich_pathway(DT.original = result_limma,
+                     treatment = treatment,
+                     control = control,
+                     outdir = EA_dir,
+                     lfc_threshold = opt$lfc_threshold,
+                     fdr_threshold = opt$fdr_threshold,
+                     enrich_pvalue = opt$enrich_pvalue)
+      PTM_EA(DT.original = result_limma,
+             treatment = treatment,
+             control = control,
+             outdir = PTM_EA_dir,
+             lfc_threshold = opt$lfc_threshold,
+             fdr_threshold = opt$fdr_threshold,
+             enrich_pvalue = opt$enrich_pvalue)
+    }
   }
 }
 
 
+##PTM Enrichment Analysis 
+PTM_EA = function(DT.original, treatment, control, outdir, lfc_threshold, fdr_threshold, enrich_pvalue){
+  PTM_db=read.gmt('src/ptm.sig.db.all.uniprot.human.v2.0.0.gmt')
+  PTM_db$gene=gsub('-p.*','',PTM_db$gene)
+  ##create dir
+  dir=paste0(outdir,'/', treatment, '_vs_', control)
+  if (!dir.exists(dir)){
+    dir.create(dir,recursive = T)
+  }
+  DT <- DT.original %>%
+    mutate(Group = 'Others') %>%
+    mutate(Group = ifelse(logFC >= lfc_threshold, 'UP', Group)) %>%
+    mutate(Group = ifelse(logFC <= -lfc_threshold, 'DOWN', Group)) %>%
+    mutate(Group = ifelse(adj.P.Val >= fdr_threshold, 'Others', Group))%>%
+    data.frame()
+  DT$pho_site=paste0(DT$Protein_Group,';',gsub('\\(|\\)','',DT$PTM_Location))
+  
+  all_PTM=DT$logFC
+  names(all_PTM)=DT$pho_site
+  all_PTM <- sort(all_PTM, decreasing = TRUE)
+  
+  ## up and down regulated PTMs 
+  up_PTM=DT[which(DT$logFC>=lfc_threshold&DT$adj.P.Val<=fdr_threshold),]
+  down_PTM=DT[which(DT$logFC<=(-lfc_threshold)&DT$adj.P.Val<=fdr_threshold),]
+  if (nrow(up_PTM)>0){
+    print('Processing up_PTM enrichment analysis')
+    em <- enricher(up_PTM$pho_site, 
+                   TERM2GENE=PTM_db,
+                   qvalueCutoff =enrich_pvalue,
+                   universe = names(all_PTM) )
+    em_res=em@result
+    write.csv(em_res,paste0(dir,'/',  'up_enrich_res.csv'),row.names = F)
+    em_res=em_res[em_res$p.adjust<=enrich_pvalue, ]
+    if (nrow(em) > 0) {
+      p=dotplot(em, showCategory=10)
+      ggsave(paste0(dir,'/','up_enrich_dotplot.pdf'),p,width = 10,height = 10)
+    }else{
+      print("No enriched pathways found in up PTM Enrichment Analysis analysis")} 
+  }
+  if (nrow(down_PTM)>0){
+    print('Processing down_PTM enrichment analysis')
+    em <- enricher(down_PTM$pho_site, 
+                   TERM2GENE=PTM_db,
+                   qvalueCutoff =enrich_pvalue,
+                   universe = names(all_PTM) )
+    em_res=em@result
+    write.csv(em_res,paste0(dir,'/',  'down_enrich_res.csv'),row.names = F)
+    em_res=em_res[em_res$p.adjust<=enrich_pvalue, ]
+    if (nrow(em_res) > 0) {
+      p=dotplot(em, showCategory=10)
+      ggsave(paste0(dir,'/','down_enrich_dotplot.pdf'),p,width = 10,height = 10)
+    }else{
+      print("No enriched pathways found in down PTM Enrichment Analysis analysis")} 
+      
+  }
+  print('Processing Gene Set Enrichment Analysis')
+  if (nrow(down_PTM)+nrow(up_PTM) >0){
+    gse <- GSEA(geneList = all_PTM, 
+                TERM2GENE = PTM_db,
+                pvalueCutoff = enrich_pvalue)
+    gse_res=gse@result
+    if (nrow(gse_res) > 0) {
+      p=dotplot(gse, showCategory=10, split=".sign") + facet_grid(.~.sign)
+      ggsave(paste0(dir,'/','gse_dotplot.pdf'),p,width = 10,height = 10) 
+      cat(paste0('   -> ', dir,'/','gse_dotplot.pdf', '\n'))
+      x2 <- pairwise_termsim(gse)
+      p=emapplot(x2)
+      ggsave(paste0(dir,'/', 'gse_emap.pdf'),p,width = 10,height = 10)
+      cat(paste0('   -> ', dir,'/', 'gse_emap.pdf', '\n'))
+      write.csv(gse_res,paste0(dir,'/',  'gse_res.csv'),row.names = F)
+    }else{
+      print("No enriched pathways found in the Gene Set Enrichment Analysis analysis")}
+  }
+}
+      
+
+
+##ksea
+ksea=function(dir,outdir,substrates_cutoff,ksea_fdr){
+  files=list.files(dir)
+  files=grep('.*vs.*tsv',files,value = T)
+  all_KSEA_Scores=list()
+  for (i in files){
+    filename=gsub('_i.*_vs|.tsv','',i)
+    KS_outdir=paste0(outdir, filename,'/')
+    if (!dir.exists(KS_outdir)){
+      dir.create(KS_outdir,recursive = T)
+    }
+    DE_res=as.data.frame(fread(paste0(dir,'/',i)))
+    DT=DE_res %>%
+      select(Protein_Group,Genes,Modified_Sequence,PTM_Location,adj.P.Val,logFC)
+    colnames(DT)=c("Protein","Gene","Peptide","Residue.Both","p","FC")
+    DT$Peptide=gsub('_|\\[.*\\]','',DT$Peptide)
+    DT$FC=2^DT$FC
+    DT$Residue.Both=gsub('\\(|\\)','',DT$Residue.Both)
+    DT=na.omit(DT)
+    data("KSData")
+    KSLinks= KSEA.KS_table(KSData,
+                           DT,
+                           NetworKIN = T,
+                           NetworKIN.cutoff = 5)
+    ezwrite(KSLinks,KS_outdir,'Kinase_Substrate_Links.tsv')
+    KSEA_Scores=KSEA.Scores(KSData,
+                            DT,
+                            NetworKIN = T,
+                            NetworKIN.cutoff = 5)
+    ezwrite(KSEA_Scores,KS_outdir,'KSEA_Kinase_Scores.tsv')
+    drawdata <- KSEA_Scores %>%
+      filter(m >= substrates_cutoff) %>%  # Filter rows where m is less than 5,m.cutoff a numeric value between 0 and infinity indicating the min. # of substrates 
+      arrange(z.score) %>%  # Arrange by z.score in ascending order
+      slice(c(1:10, (n() - 9):n())) %>%  # Select the smallest top 10 negative and largest top 10 positive z.scores
+      mutate(Group = 'Others',
+             Group = if_else(z.score > 0, 'UP', Group),
+             Group = if_else(z.score < 0, 'DOWN', Group),
+             Group = if_else(p.value >= ksea_fdr, 'Others', Group))
+    
+    
+    p=ggplot(drawdata,aes(y=reorder(Kinase.Gene,z.score),x=z.score,fill=Group))+
+      scale_fill_manual(breaks = c("DOWN", "Others", "UP"), 
+                        values = c("#67a9cf", "#969696", "#ef8a62"),
+                        labels = c("Neg_Significant", "Not", "Pos_Significant"))+
+      theme_classic()+
+      geom_bar(stat='identity',position = 'dodge')+
+      ylab('Kinase Gene')+
+      xlab('Enrichment Score')+ 
+      theme(legend.position="top")
+    ggsave(filename = paste0(KS_outdir,'/enrich_plot_pvalue.pdf'),plot = p,width = 8, height = 6)
+    p=ggplot(drawdata,aes(x=reorder(Kinase.Gene,Enrichment),y=Enrichment,fill=z.score))+
+      theme_bw()+
+      geom_bar(stat='identity',position = 'dodge')+
+      theme(axis.text.x = element_text(
+        angle = 90,
+        hjust = 1,
+        vjust = 0.5))+
+      xlab('Kinase Gene')+
+      ylab('Enrichment Score')+
+      scale_fill_gradient2(high='#D14237',mid='white',low = '#3763B1')
+    ggsave(filename = paste0(KS_outdir,'/enrich_plot.pdf'),plot = p,width = 8, height = 6)
+    all_KSEA_Scores=c(all_KSEA_Scores,list(KSEA_Scores))
+  }
+  setwd(paste0(outdir))
+  sample.labels=c(gsub('i.*_v','v',files))
+  sample.labels=gsub('.tsv','',sample.labels)
+  KSEA.Heatmap(all_KSEA_Scores, 
+               sample.labels=sample.labels, 
+               stats = 'p.value', #可选p.value或是FDR
+               m.cutoff=5,
+               p.cutoff=0.05,
+               sample.cluster=F)
+}
 
 #Soma functions##########
 ##format data
@@ -1650,39 +1895,49 @@ Buffer_filter=function(DT,output_dir){
 
 ##soma pg count plot sd
 soma_plot_counts = function(counts,condition_file, output_dir) {
-  counts <- counts %>%
-    merge(condition_file, by.x = 'Sample', by.y = 'SampleId') %>%
-    filter(SampleType == "Sample") %>%   # remove control samples
-    filter(!is.na(SampleGroup))      
-  p=ggplot(counts, aes(x=as.factor(Sample), y=N,fill=SampleGroup)) +
-    geom_bar(stat="identity", position=position_dodge())+
-    theme_classic()+
-    labs(fill = "",x="",y='Number of Protein Group')+
-    scale_x_discrete(guide = guide_axis(angle = 90))
-  ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer.pdf'),height=4,width = 15)
-  cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer.pdf', '\n'))
+  if (all(is.na(condition_file$SampleGroup))) {
+    p=ggplot(counts, aes(x=Sample, y=N)) +
+      geom_bar(stat="identity",fill="#67a9cf")+
+      theme_classic()+
+      labs(fill = "",x="",y='Number of Protein Groups')+
+      scale_x_discrete(guide = guide_axis(angle = 90))
+    ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer.pdf'),height=4,width = 15)
+    cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer.pdf', '\n'))
+  }else{
+    counts <- counts %>%
+      merge(condition_file, by.x = 'Sample', by.y = 'SampleId') %>%
+      filter(SampleType == "Sample") %>%   # remove control samples
+      filter(!is.na(SampleGroup))      
+    p=ggplot(counts, aes(x=as.factor(Sample), y=N,fill=SampleGroup)) +
+      geom_bar(stat="identity", position=position_dodge())+
+      theme_classic()+
+      labs(fill = "",x="",y='Number of Protein Group')+
+      scale_x_discrete(guide = guide_axis(angle = 90))
+    ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer.pdf'),height=4,width = 15)
+    cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer.pdf', '\n'))
+    #sd
+    summary_data <- counts %>%
+      group_by(SampleGroup) %>%
+      summarize(mean = mean(N), sd = sd(N)) %>%
+      arrange(SampleGroup)%>%
+      na.omit()
+    p=ggplot(summary_data, aes(x=as.factor(SampleGroup), y=mean,fill=SampleGroup)) +
+      geom_bar(stat="identity", position=position_dodge())+
+      theme_classic()+
+      geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                    position=position_dodge(.9))+
+      labs(fill = "",x="",y='Number of Protein Group')
+    ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer_group_sd','.pdf'),height=5,width = 4)
+    cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer_group_sd','.pdf', '\n'))
+    
+  }
   
-  #sd
-  summary_data <- counts %>%
-    group_by(SampleGroup) %>%
-    summarize(mean = mean(N), sd = sd(N)) %>%
-    arrange(SampleGroup)%>%
-     na.omit()
-   p=ggplot(summary_data, aes(x=as.factor(SampleGroup), y=mean,fill=SampleGroup)) +
-     geom_bar(stat="identity", position=position_dodge())+
-     theme_classic()+
-     geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
-                position=position_dodge(.9))+
-     labs(fill = "",x="",y='Number of Protein Group')
-  ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer_group_sd','.pdf'),height=5,width = 4)
-  cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer_group_sd','.pdf', '\n'))
+  
+  
 }
 
 ##soma pca plot
 soma_get_PCs=function(DT,condition_file){
-  condition_file <- condition_file %>%
-    filter(!is.na(SampleGroup))%>%
-    select(SampleId,SampleGroup)
   out <- list()
   ##cluster data(na=0)
   cluster_data <- DT %>%
@@ -1697,6 +1952,11 @@ soma_get_PCs=function(DT,condition_file){
   pca_df = as.data.frame(pca$x)[,1:5]
   pca_df$Sample=rownames(pca_df)
   pca_df$Condition=gsub('_[0-9]+$','',rownames(pca_df))
+  if (!all(is.na(condition_file$SampleGroup))) {
+    condition_file <- condition_file %>%
+      filter(!is.na(SampleGroup))%>%
+      select(SampleId,SampleGroup)
+  }
   pca_df=merge(pca_df,condition_file,by.x='Sample',by.y='SampleId')
   out$components <- pca_df
   ezwrite(out$components, cluster_dir, 'PCA.tsv')
@@ -1705,11 +1965,20 @@ soma_get_PCs=function(DT,condition_file){
 }
 
 soma_plot_PCs <- function(PCA, output_dir, output_filename) {
-  p <- ggplot(PCA$components, aes(x = PC1, y = PC2, color = SampleGroup)) +
-    geom_point(size=4) +
-    xlab(paste0("PC1","(",PCA$summary$percent[1],"%)")) +
-    ylab(paste0("PC2","(",PCA$summary$percent[2],"%)")) +
-    theme_classic()
+  if (all(is.na(PCA$components$SampleGroup))){
+    p <- ggplot(PCA$components, aes(x = PC1, y = PC2, color = SampleType)) +
+      geom_point(size=4) +
+      xlab(paste0("PC1","(",PCA$summary$percent[1],"%)")) +
+      ylab(paste0("PC2","(",PCA$summary$percent[2],"%)")) +
+      theme_classic()
+  }else{
+    p <- ggplot(PCA$components, aes(x = PC1, y = PC2, color = SampleGroup)) +
+      geom_point(size=4) +
+      xlab(paste0("PC1","(",PCA$summary$percent[1],"%)")) +
+      ylab(paste0("PC2","(",PCA$summary$percent[2],"%)")) +
+      theme_classic()
+  }
+  
   ggsave(p,filename=paste0(output_dir, output_filename), height = 4,width = 5)
   cat(paste0('   -> ', output_dir, output_filename, '\n'))
 }
@@ -1732,20 +2001,28 @@ soma_get_umap <- function(DT, condition_file) {
   DT.umap <- umap(t(log2_cluster_data))
   DT.out <- as.data.table(DT.umap$layout, keep.rownames=TRUE)
   setnames(DT.out, c('Sample', 'UMAP1', 'UMAP2'))
-  condition_file <- condition_file %>%
-    filter(!is.na(SampleGroup))%>%
-    select(SampleId,SampleGroup)
+  if (!all(is.na(condition_file$SampleGroup))) {
+    condition_file <- condition_file %>%
+      filter(!is.na(SampleGroup))%>%
+      select(SampleId,SampleGroup)
+  }
   DT.out=merge(DT.out,condition_file,by.x='Sample',by.y='SampleId')
   return(DT.out[])
 }
 
 soma_plot_umap <- function(DT, output_dir, output_filename) {
+  if (all(is.na(DT$SampleGroup))){
+    g <- ggplot(DT, aes(x=UMAP1, y=UMAP2, color=SampleType)) +
+      geom_point(size=4) +
+      theme_classic() 
+    
+  }else{
   g <- ggplot(DT, aes(x=UMAP1, y=UMAP2, color=SampleGroup)) +
     geom_point(size=4) +
     theme_classic() 
+  }
   cat(paste0('   -> ', output_dir, output_filename, '\n'))
   ggsave(g, filename=paste0(output_dir, output_filename), height = 4,width = 5)
-  cat(paste0('   -> ', output_dir, output_filename, '\n'))
 }
 
 soma_plot_volcano=function(DT.original, out_dir, output_filename ,lfc_threshold, fdr_threshold, labelgene) {
@@ -1796,20 +2073,30 @@ soma_plot_volcano=function(DT.original, out_dir, output_filename ,lfc_threshold,
 }
 
 soma_plot_heatmap <- function(DT_heatmap,condition_file ){
-  condition_file <- condition_file %>%
-    filter(!is.na(SampleGroup))   
-  sample_anno=data.frame(condition = as.factor(condition_file$SampleGroup))
-  row.names(sample_anno) <- condition_file$SampleId
   DT_heatmap=DT_heatmap %>%
     select_if(is.numeric) 
-  pheatmap(log10(DT_heatmap),
-           scale='row',
-           show_rownames = F,
-           show_colnames = F,
-           annotation_col = sample_anno,
-           cluster_cols = T,
-           treeheight_row=0,
-           filename=paste0(opt$outdir,'/','heatmap_all.pdf'))
+  if (all(is.na(condition$SampleGroup))) {
+    pheatmap(log10(DT_heatmap),
+             scale='column',
+             show_rownames = F,
+             show_colnames = F,
+             cluster_cols = T,
+             treeheight_row=0,
+             filename=paste0(opt$outdir,'/','heatmap_all.pdf'))
+  }else{
+    condition_file <- condition_file %>%
+      filter(!is.na(SampleGroup))   
+    sample_anno=data.frame(condition = as.factor(condition_file$SampleGroup))
+    row.names(sample_anno) <- condition_file$SampleId
+    pheatmap(log10(DT_heatmap),
+             scale='column',
+             show_rownames = F,
+             show_colnames = F,
+             annotation_col = sample_anno,
+             cluster_cols = T,
+             treeheight_row=0,
+             filename=paste0(opt$outdir,'/','heatmap_all.pdf'))
+  }
 }
 
 soma_plot_heatmap_subset <- function(DT_heatmap,condition_file,gene_subset ){
@@ -1835,7 +2122,7 @@ soma_plot_heatmap_subset <- function(DT_heatmap,condition_file,gene_subset ){
     filter(Genes %in% gene_subset$gene) %>%
     select_if(is.numeric) 
   pheatmap(log10(DT_heatmap),
-           scale='row',
+           scale='column',
            show_rownames = F,
            show_colnames = F,
            annotation_col = sample_anno,
@@ -1913,22 +2200,22 @@ miss_value_plot=function(DT,outdir){
   ezwrite(na_per_sample_df,outdir,'na_per_sample.tsv')
   
   # Plot NA distribution in sampleumns
-  ggplot(na_per_sample_df, aes(x = NA_Count)) +
+  p=ggplot(na_per_sample_df, aes(x = NA_Count)) +
     geom_histogram(color="darkblue", fill="lightblue")+
     theme_classic()+ 
     geom_vline(aes(xintercept=mean(NA_Count)),
                color="blue", linetype="dashed", size=1)+
     ggtitle("Distribution of NAs in samples")
-  ggsave(paste0(outdir,'NA_in_sampels.pdf'),width =6, height = 5 )
+  ggsave(paste0(outdir,'NA_in_sampels.pdf'),plot = p,width =6, height = 5 )
   cat(paste0('   -> ', outdir, 'NA_in_sampels.pdf', '\n'))
   # Plot NA distribution in proteins
-  ggplot(na_per_protein_df, aes(x = NA_Count)) +
+  p=ggplot(na_per_protein_df, aes(x = NA_Count)) +
     geom_histogram(color="darkblue", fill="lightblue",bins = 150)+
     theme_classic()+ 
     geom_vline(aes(xintercept=mean(NA_Count)),
                color="darkblue", linetype="dashed", size=1)+
     ggtitle("Distribution of NAs in proteins")
-  ggsave(paste0(outdir,'NA_in_proteins.pdf'),width =6, height = 5 )
+  ggsave(paste0(outdir,'NA_in_proteins.pdf'),plot = p,width =6, height = 5 )
   cat(paste0('   -> ', outdir, 'NA_in_proteins.pdf', '\n'))
 }
 
