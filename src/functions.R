@@ -113,6 +113,32 @@ trim_colnames <- function(DT) {
     return(colnames_out)
 }
 
+unique_data <- function(DT, col,output_dir,output_filename) {
+  DT_unique <- DT %>%
+    # Calculate missing values for all columns except specified ones
+    mutate(missing_value = rowSums(is.na(select(., -contains("Protein_Group|Genes|Precursor|Peptide_Sequence"))))) %>%
+    
+    # Calculate median values for numeric columns except specified ones
+    mutate(median = rowMedians(as.matrix(select(., -contains("Protein_Group|Genes|Precursor|Peptide_Sequence|missing_value")) %>%
+                                           select_if(is.numeric)), na.rm = TRUE)) %>%
+    
+    # Group by the specified column dynamically
+    group_by(!!sym(col))%>%
+    
+    # Filter rows with minimum missing values and maximum median intensity
+    filter(missing_value == min(missing_value)) %>%
+    slice(which.max(median)) %>%
+    ungroup() %>%
+    
+    # Remove the temporary columns
+    select(-c(missing_value, median))
+  
+  # Write the result to a CSV file
+  ezwrite(DT_unique, output_dir = output_dir,output_filename = output_filename)
+  return(DT_unique)
+}
+
+  
 melt_intensity_table <- function(DT) {
     # Converts intensity data.table to long format
     # info_cols <- c('Protein_Group', 'Genes', 'First_Protein_Description')
@@ -132,8 +158,8 @@ plot_pg_counts <- function(DT.long, output_dir) {
   ezwrite(pgcounts, output_dir, 'protein_group_nonzero_counts.tsv')
   n_samples <- nrow(pgcounts)
   if (n_samples > 20) {
-    p=ggplot(pgcounts, aes(x=Sample, y=N,fill=Condition)) +
-      geom_bar(stat="identity")+
+    p=ggplot(pgcounts, aes(x=Sample, y=N)) +
+      geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
       labs(fill = "",x="",y='Number of Protein Groups')+
       scale_x_discrete(guide = guide_axis(angle = 90))
@@ -462,12 +488,12 @@ get_umap <- function(DT, neighbors) {
     DT.umap <- umap(t(log2_cluster_data), n_neighbors=neighbors)
     DT.out <- as.data.table(DT.umap$layout, keep.rownames=TRUE)
     setnames(DT.out, c('Sample', 'UMAP1', 'UMAP2'))
-    DT.out$condition=gsub('_[0-9]+$','',DT.out$Sample)
+    DT.out$Condition=gsub('_[0-9]+$','',DT.out$Sample)
     return(DT.out[])
 }
 
 plot_umap <- function(DT, output_dir, output_filename) {
-    g <- ggplot(DT, aes(x=UMAP1, y=UMAP2, color=condition)) +
+    g <- ggplot(DT, aes(x=UMAP1, y=UMAP2, color=Condition)) +
     geom_point(size=4) +
     theme_classic() 
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
@@ -1287,14 +1313,14 @@ psilac_standardize_format = function(DT) {
   if ('PEP.IsProteinGroupSpecific' %in% colnames(DT)) {
     setnames(DT, 'PEP.IsProteinGroupSpecific', 'ProteinGroupSpecific')
   }
-  if ('PG.Genes' %in% colnames(DT)) {
-    setnames(DT, 'PEP.IsGeneSpecific', 'GeneSpecific')
+  if ('PEP.StrippedSequence' %in% colnames(DT)) {
+    setnames(DT, 'PEP.StrippedSequence', 'Peptide_Sequence')
   }
   if ('EG.PrecursorId' %in% colnames(DT)) {
     setnames(DT, 'EG.PrecursorId', 'Precursor')
   }
   DT=as.data.frame(DT)
-  DT=DT[,grep('Protein_Group|Genes|Channel',colnames(DT))]
+  DT=DT[,grep('Protein_Group|Genes|Channel|Peptide_Sequence|Precursor',colnames(DT))]
   # Remove trailing file extensions
   extensions = '.mzML$|.mzml$|.RAW$|.raw$|.dia$|.DIA$|_Intensity|raw.PG.MS2|DIA_|raw.PEP.MS2|raw.EG.TargetReference| \\([^()]*\\)'
   extension_samplenames =  colnames(DT)[colnames(DT) %like% extensions]
@@ -1303,38 +1329,88 @@ psilac_standardize_format = function(DT) {
   # trim leading [N] 
   colnames_out = gsub(pattern="\\[.*\\] ", replacement='', x=colnames(DT))
   setnames(DT, colnames_out)
-  #as number
-  DT[,grep('Channel',colnames(DT))]=as.data.frame(apply(DT[,grep('Channe',colnames(DT))],2,as.numeric))
   DT=data.table(DT)
   return(DT[])
 }
 
-# pg count
-plot_silac_pg_counts = function(DT.long, output_dir,height,width) {
-  counts=DT.long[, .N, by=Sample]
-  counts$Chanel=gsub('.*Channel','Channel',counts$Sample)
-  ezwrite(counts, output_dir, paste0('silac_chanel_pgcount','.tsv'))
-  p=ggplot(counts, aes(x=Sample, y=N,fill=Chanel)) +
+##plot protein group or peptide counts of all the sample
+plot_silac_pg_counts = function(DT.long, output_dir,intensity_cutoff,name,height,width) {
+  pg_count <- DT.long %>%
+    filter(Intensity >intensity_cutoff)%>%
+    group_by(Sample) %>%  # Group by the Sample column
+    summarise(counts = n_distinct(Protein_Group)) %>%  # Count unique Protein_Group
+    mutate(Channel = gsub('.*Channel', 'Channel', Sample)) %>%   # Apply gsub using mutate
+    mutate(Condition = gsub('[0-9]*\\.Channel', 'Channel', Sample))
+  
+  ezwrite(pg_count, output_dir, paste0(name,'pg_count_over_',intensity_cutoff,'.tsv'))
+  
+  p=ggplot(pg_count, aes(x=Sample, y=counts,fill=Channel)) +
     geom_bar(stat="identity")+
     theme_classic()+
-    labs(fill = "",x="",y='Protein Group number')+
+    labs(fill = "",x="",y='Protein Group Number')+
     scale_x_discrete(guide = guide_axis(angle = 90))
-  ggsave(plot = p,filename = paste0(output_dir, 'silac_chanel_pgcount','.pdf'),height=height,width = width)
-  cat(paste0('   -> ', output_dir, 'silac_chanel_pgcount.pdf', '\n'))
+  ggsave(plot = p,filename = paste0(output_dir,name, 'pg_count_over_',intensity_cutoff,'.pdf'),height=height,width = width)
+  cat(paste0('   -> ', output_dir,name, 'pg_count_over_',intensity_cutoff,'.pdf', '\n'))
+  
+  pg_summary_data <- pg_count %>%
+    group_by(Condition) %>%
+    summarize(mean = mean(counts), sd = sd(counts)) %>%
+    mutate(Channel = gsub('.*Channel', 'Channel', Condition)) %>%
+    mutate(Sample = gsub('_Channel.*', '', Condition)) %>%
+    arrange(Channel)  # Ascending order
+  
+  p=ggplot(pg_summary_data, aes(x=as.factor(Sample), y=mean,fill=Channel)) +
+    geom_bar(stat="identity",position=position_dodge())+
+    theme_classic()+
+    geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                  position=position_dodge(.9))+
+    labs(fill = "",x="",y='Number of Protein Group')+
+    scale_x_discrete(guide = guide_axis(angle = 90))+ 
+    facet_grid(.~ Channel)
+  ggsave(plot = p,filename = paste0(output_dir,'/',name,'pg_count_sd_over_',intensity_cutoff,'.pdf'),height=height,width = width)
+  cat(paste0('   -> ', output_dir, '/',name,'pg_count_sd_over_',intensity_cutoff,'.pdf', '\n'))
+  return(pg_count[])
 }
 
-#pep count
-plot_silac_pep_counts = function(DT.long, output_dir,height,width) {
-  counts=DT.long[, .N, by=Sample]
-  counts$Chanel=gsub('.*Channel','Channel',counts$Sample)
-  ezwrite(counts, output_dir, paste0('silac_chanel_pepcount','.tsv'))
-  p=ggplot(counts, aes(x=Sample, y=N,fill=Chanel)) +
+
+
+
+plot_silac_pep_counts = function(DT.long, output_dir,intensity_cutoff,name,height,width) {
+  pep_count <- DT.long %>%
+    filter(Intensity >intensity_cutoff)%>%
+    group_by(Sample) %>%  # Group by the Sample column
+    summarise(counts = n_distinct(Peptide_Sequence)) %>%  # Count unique Peptide_Sequence
+    mutate(Channel = gsub('.*Channel', 'Channel', Sample))%>%   # Apply gsub using mutate
+    mutate(Condition = gsub('[0-9]*\\.Channel', 'Channel', Sample)) 
+  
+  ezwrite(pep_count, output_dir, paste0(name,'pep_count_over_',intensity_cutoff,'.tsv'))
+  
+  p=ggplot(pep_count, aes(x=Sample, y=counts,fill=Channel)) +
     geom_bar(stat="identity")+
     theme_classic()+
-    labs(fill = "",x="",y='Peptide number')+
+    labs(fill = "",x="",y='Peptide Number')+
     scale_x_discrete(guide = guide_axis(angle = 90))
-  ggsave(plot = p,filename = paste0(output_dir, 'silac_chanel_pepcount','.pdf'),height=height,width = width)
-  cat(paste0('   -> ', output_dir, 'silac_chanel_pepcount','.pdf', '\n'))
+  ggsave(plot = p,filename = paste0(output_dir, name,'pep_count_over_',intensity_cutoff,'.pdf'),height=height,width = width)
+  cat(paste0('   -> ', output_dir, name,'pep_count_over_',intensity_cutoff,'.pdf', '\n'))
+  
+  pep_summary_data <- pep_count %>%
+    group_by(Condition) %>%
+    summarize(mean = mean(counts), sd = sd(counts)) %>%
+    mutate(Channel = gsub('.*Channel', 'Channel', Condition)) %>%
+    mutate(Sample = gsub('_Channel.*', '', Condition)) %>%
+    arrange(Channel)  # Ascending order
+  
+  p=ggplot(pep_summary_data, aes(x=as.factor(Sample), y=mean,fill=Channel)) +
+    geom_bar(stat="identity",position=position_dodge())+
+    theme_classic()+
+    geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                  position=position_dodge(.9))+
+    labs(fill = "",x="",y='Number of Peptide')+
+    scale_x_discrete(guide = guide_axis(angle = 90))+ 
+    facet_grid(.~ Channel)
+  ggsave(plot = p,filename = paste0(output_dir,'/',name,'pep_count_sd_over_',intensity_cutoff,'.pdf'),height=5,width = 4)
+  cat(paste0('   -> ', output_dir, '/',name,'pep_count_sd_over_',intensity_cutoff,'.pdf', '\n'))
+  return(pep_count[])
 }
 
 ##plot protein group or peptide intensity of all the sample
@@ -1357,7 +1433,7 @@ plot_silac_pg_intensity = function(DT.long, output_dir,height,width) {
   cat(paste0('   -> ', output_dir, 'silac_pg_intensity','_chanel.pdf', '\n'))
 }
 
-plot_silac_pep_intensity = function(DT.long, output_dir,height,width) {
+plot_silac_pep_intensity = function(DT.long, output_dir,name,height,width) {
   DT.long$Chanel=gsub('.*Channel','Channel',DT.long$Sample)
   DT.long$Condition=gsub('.Channel.*','',DT.long$Sample)
   DT.long$Sample=gsub('_[0-9]+$','',DT.long$Condition)
@@ -1366,18 +1442,104 @@ plot_silac_pep_intensity = function(DT.long, output_dir,height,width) {
     facet_wrap(. ~ Sample,ncol = 3)+
     theme_classic()+
     theme(axis.text.y = element_blank())
-  ggsave(plot = p,filename = paste0(output_dir, 'silac_pep_intensity','_sample.pdf'),width = width,height =height)
-  cat(paste0('   -> ', output_dir, 'silac_pep_intensity','_sample.pdf', '\n'))
-  p=ggplot(DT.long, aes(y=Condition, x=log10(Intensity),fill=Condition)) + 
+  ggsave(plot = p,filename = paste0(output_dir,name, 'pep_intensity_sample.pdf'),width = width,height =height)
+  cat(paste0('   -> ', output_dir,name, 'pep_intensity_sample.pdf', '\n'))
+  p=ggplot(DT.long, aes(y=Sample, x=log10(Intensity),fill=Sample)) + 
     geom_density_ridges()+ 
     facet_wrap(. ~ Chanel)+
     theme_classic()
-  ggsave(plot = p,filename = paste0(output_dir, 'silac_pep_intensity','_chanel.pdf'),width = width,height =height)
-  cat(paste0('   -> ', output_dir, 'silac_pep_intensity','_chanel.pdf', '\n'))
+  ggsave(plot = p,filename = paste0(output_dir,name, 'pep_intensity_chanel.pdf'),width = width,height =height)
+  cat(paste0('   -> ', output_dir, name,'pep_intensity_chanel.pdf', '\n'))
+  p=ggplot(DT.long, aes(y=Condition, x=log10(Intensity),fill=Sample)) + 
+    geom_density_ridges()+ 
+    facet_wrap(. ~ Chanel)+
+    theme_classic()+ theme(legend.position="none")
+  ggsave(plot = p,filename = paste0(output_dir,name, 'pep_intensity_separated.pdf'),width = width,height =height)
+  cat(paste0('   -> ', output_dir, name,'pep_intensity_separated.pdf', '\n'))
+}
+
+##Cluster analysis
+
+##plot pca
+psilac_pca <- function(DT, output_dir, output_filename) {
+  #got pca
+  PCA <- get_PCs(DT)
+  PCA$components$Channel=gsub('.*Channel','Channel', PCA$components$Sample)
+  PCA$components$Condition = gsub('_[0-9]*\\.Channel.*', '', PCA$components$Sample)
+  #write pca results
+  ezwrite(PCA$components, output_dir, paste0(output_filename,'.tsv'))
+  ezwrite(PCA$summary, output_dir, paste0(output_filename,'_summary.tsv'))
+  #plot pca results
+  if (length(unique(PCA$components$Sample))>8) {
+    ncol=2
+  }else{
+    ncol=1
+  }
+  p <- ggplot(PCA$components, aes(x = PC1, y = PC2, color = Condition,shape=Channel)) +
+    geom_point(size=4) +
+    xlab(paste0("PC1","(",PCA$summary$percent[1],"%)")) +
+    ylab(paste0("PC2","(",PCA$summary$percent[2],"%)")) +
+    theme_classic()+
+    guides(color = guide_legend(ncol =  ncol))
+  ggsave(p,filename=paste0(output_dir, output_filename,'.pdf'), height = 8,width = 10)
+}
+
+psilac_umap <- function(DT, output_dir, output_filename) {
+  #got umap
+  umap <- get_umap(DT,neighbors = 15)
+  umap$Channel=gsub('.*Channel','Channel', umap$Sample)
+  umap$Condition = gsub('_[0-9]*\\.Channel.*', '', umap$Sample)
+  
+  #write umap results
+  ezwrite(umap, output_dir, paste0(output_filename,'.tsv'))
+  #plot umap results
+  if (length(unique(umap$Sample))>8) {
+    ncol=2
+  }else{
+    ncol=1
+  }
+  g <- ggplot(umap, aes(x=UMAP1, y=UMAP2, color = Condition,shape=Channel)) +
+    geom_point(size=4) +
+    theme_classic() +
+    guides(color = guide_legend(ncol =  ncol))
+  
+  cat(paste0('   -> ', output_dir, output_filename,'.pdf', '\n'))
+  ggsave(g, filename=paste0(output_dir, output_filename,'.pdf'), height = 6,width = 8)
 }
 
 
 
+##Caculate the remaining light peptide by L/(L+H)
+#Rate of loss of the light isotope (kLoss) by modeling the relative isotope abundance (RIA)
+L_remain_channel=function(DT,output_dir,output_filename){
+  DT=data.frame(DT)
+  #na as 0
+  DT_0=DT
+  DT_0[is.na(DT_0)]=0
+  #use the Channel to calculate the RIA
+  DT_RIA=DT_0[grep('Channel1',colnames(DT_0),value = T)]/
+    (DT_0[grep('Channel1',colnames(DT_0),value = T)]+DT_0[grep('Channel3',colnames(DT_0),value = T)])
+  DT_RIA=cbind(DT_0[,-grep('Channel|Ratio',colnames(DT_0))],DT_RIA)
+  colnames(DT_RIA)=gsub('Channel1','RIA',colnames(DT_RIA))
+  #write csv for RIA ratio
+  ezwrite(DT_RIA, output_dir, paste0(output_filename,'.tsv'))
+  return(DT_RIA)
+}
+
+H_remain_channel=function(DT,output_dir,output_filename){
+  DT=data.frame(DT)
+  #na as 0
+  DT_0=DT
+  DT_0[is.na(DT_0)]=0
+  #use the Channel to calculate the RIA
+  DT_RIA=DT_0[grep('Channel3',colnames(DT_0),value = T)]/
+    (DT_0[grep('Channel3',colnames(DT_0),value = T)]+DT_0[grep('Channel1',colnames(DT_0),value = T)])
+  DT_RIA=cbind(DT_0[,-grep('Channel|Ratio',colnames(DT_0))],DT_RIA)
+  colnames(DT_RIA)=gsub('Channel3','RIA',colnames(DT_RIA))
+  #write csv for RIA ratio
+  ezwrite(DT_RIA, output_dir, paste0(output_filename,'.tsv'))
+  return(DT_RIA)
+}
 #phospho functions#################################
 ##format data
 phospho_standardize_format = function(DT) {

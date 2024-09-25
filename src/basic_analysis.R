@@ -329,9 +329,9 @@ if (!is.null(opt$pgfile)) {
   # Visually, it is represented as a bar plot with x=sample, y=N, ordered by descending N
   # Get counts of [N=unique gene groups with `Intensity` > 0]
   tryTo('INFO: Plotting protein group counts',{
-    pgcounts=plot_pg_counts(DT.long = dat.long,
-                   output_dir = QC_dir
-                  )
+    pgcounts=plot_pg_counts(DT.long = dat.long, 
+                            output_dir = QC_dir)
+                  
   }, 'ERROR: failed!')
   
   tryTo('INFO: Plotting sample intensity correlations',{

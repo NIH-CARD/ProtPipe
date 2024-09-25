@@ -1,24 +1,14 @@
-#########################
-#pSALIC analysis
-#June-2024
-#Ziyi Li
-#CARD NIH
-#########################
+#!/usr/bin/env Rscript
+# R/4
+# Ziyi Li @ NIH-CARD
+# June-2024
+# pSILAC analysis for Spectronaut quantity estimates
 
 #### ARG PARSING ###################################################################################
 library(optparse)
 pwd = getwd()
 optparse_indent = '\n                '
 option_list = list( 
-  make_option(
-    "--pgfile",
-    default=NULL,
-    help=paste(
-      'Input file of Protein Group Intensity (from DIA-NN or Spectronaut)',
-      'Required.',
-      sep=optparse_indent
-    )
-  ),
   make_option(
     "--pepfile",
     default=NULL,
@@ -40,32 +30,13 @@ option_list = list(
     )
   ),
   make_option(
-    "--labelgene",
-    dest="labelgene",
-    default=NULL, 
-    help='Gene to always label in output plots'
-  ),
-  make_option(
-    "--heatmap",
-    dest="heatmap",
-    default=NULL, 
-    help='Gene to plot heatmap'
-  ),
-  make_option(
-    "--base",
-    dest="log_base",
-    default=10, 
-    help='Base for log transformation of intensity data. Default: 10'
-  ),
-  make_option(
     "--normalize",
     default='none',
     type='character',
-    help=paste(
-      'shift: adjust sample intensities to match global median by adding a constant',
-      'scale: adjust sample intensities to match global median by multiplicative scaling',
-      'none: do not normalize',
-      sep=optparse_indent
+    help=paste('median:adjust sample intensities to match global median',
+               'mean:adjust sample intensities to match global mean',
+               'none: do not normalize',
+               sep=optparse_indent
     )
   ),
   make_option(
@@ -107,9 +78,9 @@ option_list = list(
     )
   ),
   make_option(
-    "--foldchange",
-    dest = 'foldchange',
-    default=2,
+    "--lfc_threshold",
+    dest = 'lfc_threshold',
+    default=1,
     type='numeric',
     help=paste(
       'Minimum LINEAR fold change [NOT log, as log base can be modified] for labeling',
@@ -149,25 +120,7 @@ option_list = list(
       sep=optparse_indent
     )
   ),
-  make_option(
-    "--neighbors",
-    default=15,
-    type='numeric',
-    help=paste(
-      'N Neighbors to use for UMAP. Default: 15',
-      sep=optparse_indent
-    )
-  ),
-  make_option(
-    "--dry",
-    action = 'store_true',
-    default=FALSE, 
-    type='logical',
-    help=paste(
-      'Applies data imputation. Not yet implimented.',
-      sep=optparse_indent
-    )
-  ),
+ 
   make_option(
     "--enrich",
     dest = 'enrich_pvalue',
@@ -194,26 +147,24 @@ option_list = list(
 
 opt <- parse_args(OptionParser(option_list=option_list))
 
-
-
-if (is.null(opt$pgfile) && is.null(opt$pepfile)) {
-  cat("ERROR: --pgfile <file> or --pepfile  <file> must be provided\n")
+if (is.null(opt$pepfile)) {
+  cat("ERROR: --pepfile  <file> must be provided\n")
   badargs <- TRUE
 }
 
 #### Source the function ###
 source('src/functions.R')
 #### PACKAGES ######################################################################################
-package_list = c('ggplot2', 'data.table', 'corrplot', 'umap', 
-                 'magick', 'ggdendro', 'ecodist','ggbeeswarm',
-                 'ggrepel', 'ggthemes', 'foreach','reshape2',
-                 'org.Hs.eg.db','clusterProfiler','pheatmap',
-                 'limma','ggridges','DOSE')
+package_list = c('ggplot2','ggridges', 'ggdendro','ggbeeswarm','ggrepel', 'ggthemes', 
+                 'data.table','foreach','reshape2','corrplot', 'umap', 
+                 'magick',  'ecodist',
+                 'org.Hs.eg.db','clusterProfiler','DOSE','enrichplot',
+                 'dplyr' )
 cat("INFO: Loading required packages\n      ")
 cat(paste(package_list, collapse='\n      ')); cat('\n')
 
 defaultW <- getOption("warn"); options(warn = -1)   # Temporarily disable warnings for quiet loading
-if(all((lapply(package_list, require, character.only=TRUE)))) {
+if(all(lapply(package_list, require, character.only=TRUE))) {
   cat("INFO: All packages successfully loaded\n")
 } else {
   cat("ERROR: One or more packages not available. Are you running this within the container?\n")
@@ -227,17 +178,23 @@ if (!is.null(opt$pepfile)) {
     dat <- fread(opt$pepfile)
   }, paste0('ERROR: problem trying to load ', opt$pepfile, ', does it exist?'))
   
-  tryTo(paste0('INFO: Massaging data from ', opt$pepfile, ' into a common style format for processing'), {
-    dat <- psilac_standardize_format(dat)
+  tryTo(paste0('INFO: Standardize into a common style format for processing'), {
+    psilac_dat <- psilac_standardize_format(dat)
   }, 'ERROR: failed! Check for missing/corrupt headers?')
   
+  tryTo(paste0('INFO: Identify unique Peptide with the least missing values and highest median intensity'), {
+    psilac_dat <- unique_data(DT = psilac_dat,
+                              col = 'Peptide_Sequence',
+                              output_dir = opt$outdir,
+                              output_filename = 'psilac_data_output.tsv')
+  }, 'ERROR: failed! Check for colnames?')
   #Converting to long format
   tryTo(paste0('INFO: Converting to long format'), {
-    dat.long <- melt_intensity_table(dat)
+    dat.long <- melt_intensity_table(psilac_dat)
   }, 'ERROR: failed! Check for missing/corrupt headers?')
   
-  tryTo('INFO: Excluding all unquantified or zero intensities', {
-    dat.long <- dat.long[! is.na(Intensity)][Intensity != 0]
+  tryTo('INFO: Impute the NA as 0', {
+    dat.long[is.na(dat.long)] = 0
   }, 'ERROR: failed!')
   
   tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
@@ -250,41 +207,132 @@ if (!is.null(opt$pepfile)) {
   if(! dir.exists(QC_dir)){
     dir.create(QC_dir, recursive = T)
   }
-  ## Plotting intensity distribution
   
+  ## Plotting counts
   tryTo('INFO: Plotting counts',{
-    plot_silac_pep_counts(DT.long = dat.long,
+    pep_counts=plot_silac_counts(DT.long = dat.long,
+                               output_dir = QC_dir,
+                               intensity_cutoff = 0,
+                               name = '',
+                               height = 6, 
+                               width = 12)
+  }, 'ERROR: failed!')
+  
+  ## Exclude samples with N protein groups < opt$sds away from mean
+  ## Default value: 3 standard deviations, modifiable with --sds [N]
+  tryTo('INFO: Identifying samples with protein group count outliers',{
+    cat(paste0('INFO: defining outliers as samples with [N protein groups] > ', opt$sds, ' standard deviations from the mean\n'))
+    stdev <- sd(pgcounts$counts)
+    mean_count <- mean(pgcounts$counts)
+    min_protein_groups <- floor(mean_count - (opt$sds * stdev))
+    max_protein_groups <- ceiling(mean_count + (opt$sds * stdev))
+    cat(paste0('INFO: Tolerating protein group counts in the range [', min_protein_groups,',',max_protein_groups,']'))
+    low_count_samples <- as.character(pgcounts$Sample[pgcounts$counts < min_protein_groups])
+    high_count_samples <- as.character(pgcounts$Sample[pgcounts$counts > max_protein_groups])
+    if(length(low_count_samples)==0) {
+      cat('\nINFO: No low group count samples to remove\n')
+    } else {
+      cat(paste0('\nINFO: Runing low-count outlier ', low_count_samples))
+      cat('\n\n')
+      print(pgcounts[which(pgcounts$Sample %in% low_count_samples),])
+      cat('\n')
+      psilac_dat[, c(low_count_samples) ] = NULL   # remove sample columns from wide table
+      dat.long <- dat.long[! (Sample %in% low_count_samples)] # remove rows from long table
+    }
+    if(length(high_count_samples)==0) {
+      cat('INFO: No high group count samples to remove\n')
+    } else {
+      cat(paste0('\nINFO: Pruning high-count outlier ', high_count_samples))
+      cat('\n')
+      print(pgcounts[pgcounts$Sample %in% high_count_samples,])
+      psilac_dat[, c(high_count_samples) ] = NULL   # remove sample columns from wide table
+      dat.long <- dat.long[! (Sample %in% high_count_samples)] # remove rows from long table
+    }
+    if(length(high_count_samples) + length(low_count_samples) >0){
+      ezwrite(x = psilac_dat,output_dir = opt$outdir ,output_filename = 'psilac_data_output.tsv')
+      tryTo('INFO: Plotting counts of the filltered files',{
+        plot_silac_counts(DT.long = dat.long,
                           output_dir = QC_dir,
+                          intensity_cutoff = 0,
+                          name = 'filtered_',
                           height = 6, 
                           width = 12)
-    }, 'ERROR: failed!')
-  
+      }, 'ERROR: failed!')
+    }
+  }, 'ERROR: failed!')
+
+  ## Plotting intensity distribution
   tryTo('INFO: Plotting intensity distribution',{
     plot_silac_pep_intensity(DT.long = dat.long,
                              output_dir = QC_dir,
-                             height = 6, 
+                             name = '',
+                             height = 10, 
                              width = 12)
-    }, 'ERROR: failed!')
+  }, 'ERROR: failed!')
+  
+  #### Cluster analysis ############################################
+  cluster_dir <- paste0(opt$outdir, '/Clustering/')
+  if(! dir.exists(cluster_dir)){
+    dir.create(cluster_dir, recursive = T)
+  }
+  
+  ## PCA
+  tryTo('INFO: Plotting PCA',{
+    psilac_pca(DT = psilac_dat,
+               output_dir = cluster_dir,
+               output_filename = 'PCA')
+  }, 'ERROR: failed!')
+  
+  ## UMAP
+  tryTo('INFO: Plotting UMAP',{
+    psilac_umap(DT = psilac_dat,
+               output_dir = cluster_dir,
+               output_filename = 'UMAP')
+  }, 'ERROR: failed!')
+  
+  
+  #### Caculate half life #############################
+  HL_dir <- paste0(opt$outdir, '/HALF_Life/')
+  if(! dir.exists(HL_dir)){
+    dir.create(HL_dir, recursive = T)
+  }
+  ## Caculate the remaining light peptide by L/(L+H)
+  degradation_ratio=L_remain_channel(DT = psilac_dat,
+                                     output_dir = HL_dir ,
+                                     output_filename ='remaining_light_peptide_ratio' )
+  ## Caculate the remaining heavy peptide by H/(L+H)
+  synthesis_ratio=H_remain_channel(DT = psilac_dat,
+                                   output_dir = HL_dir ,
+                                   output_filename ='remaining_heavy_peptide_ratio' )
+  
+  ## Caculate the remaining heavy peptide and light peptide ration
+  
+  
 }
 
-##pgfile########  
 if (!is.null(opt$pgfile)) {
   #### IMPORT AND FORMAT DATA#########################################################################
-  tryTo(paste0('INFO: Reading input file ', opt$pgfile),{
+  tryTo(paste0('INFO: Reading input file ', opt$pepfile),{
     dat <- fread(opt$pgfile)
-  }, paste0('ERROR: problem trying to load ', opt$pgfile, ', does it exist?'))
+  }, paste0('ERROR: problem trying to load ', opt$pepfile, ', does it exist?'))
   
-  tryTo(paste0('INFO: Massaging data from ', opt$pgfile, ' into a common style format for processing'), {
-    dat <- psilac_standardize_format(dat)
+  tryTo(paste0('INFO: Standardize into a common style format for processing'), {
+    psilac_dat <- psilac_standardize_format(dat)
   }, 'ERROR: failed! Check for missing/corrupt headers?')
   
+  tryTo(paste0('INFO: Identify unique genes with the least missing values and highest median intensity'), {
+    psilac_dat <- unique_data(DT = psilac_dat,
+                              col = 'Genes',
+                              output_dir = opt$outdir,
+                              output_filename = 'psilac_pro_data_output.tsv')
+  }, 'ERROR: failed! Check for colnames?')
   #Converting to long format
   tryTo(paste0('INFO: Converting to long format'), {
-    dat.long <- melt_intensity_table(dat)
+    dat.long <- melt_intensity_table(psilac_dat)
   }, 'ERROR: failed! Check for missing/corrupt headers?')
   
-  tryTo('INFO: Excluding all unquantified or zero intensities', {
-    dat.long <- dat.long[! is.na(Intensity)][Intensity != 0]
+  tryTo('INFO: Impute the NA as 0', {
+    dat.long[is.na(dat.long)] = 0
   }, 'ERROR: failed!')
   
   tryTo(paste0('INFO: Applying Filter Intensity > ',opt$minintensity),{
@@ -297,23 +345,107 @@ if (!is.null(opt$pgfile)) {
   if(! dir.exists(QC_dir)){
     dir.create(QC_dir, recursive = T)
   }
-  ## Plotting intensity distribution
   
+  ## Plotting counts
   tryTo('INFO: Plotting counts',{
-    plot_silac_pg_counts(DT.long = dat.long,
-                          output_dir = QC_dir,
-                          height = 6, 
-                          width = 12)
+    pgcounts=plot_silac_pg_counts(DT.long = dat.long,
+                               output_dir = QC_dir,
+                               intensity_cutoff = 0,
+                               name = 'pro',
+                               height = 6, 
+                               width = 12)
   }, 'ERROR: failed!')
   
+  ## Exclude samples with N protein groups < opt$sds away from mean
+  ## Default value: 3 standard deviations, modifiable with --sds [N]
+  tryTo('INFO: Identifying samples with protein group count outliers',{
+    cat(paste0('INFO: defining outliers as samples with [N protein groups] > ', opt$sds, ' standard deviations from the mean\n'))
+    stdev <- sd(pgcounts$counts)
+    mean_count <- mean(pgcounts$counts)
+    min_protein_groups <- floor(mean_count - (opt$sds * stdev))
+    max_protein_groups <- ceiling(mean_count + (opt$sds * stdev))
+    cat(paste0('INFO: Tolerating protein group counts in the range [', min_protein_groups,',',max_protein_groups,']'))
+    low_count_samples <- as.character(pgcounts$Sample[pgcounts$counts < min_protein_groups])
+    high_count_samples <- as.character(pgcounts$Sample[pgcounts$counts > max_protein_groups])
+    if(length(low_count_samples)==0) {
+      cat('\nINFO: No low group count samples to remove\n')
+    } else {
+      cat(paste0('\nINFO: Runing low-count outlier ', low_count_samples))
+      cat('\n\n')
+      print(pgcounts[which(pgcounts$Sample %in% low_count_samples),])
+      cat('\n')
+      psilac_dat[, c(low_count_samples) ] = NULL   # remove sample columns from wide table
+      dat.long <- dat.long[! (Sample %in% low_count_samples)] # remove rows from long table
+    }
+    if(length(high_count_samples)==0) {
+      cat('INFO: No high group count samples to remove\n')
+    } else {
+      cat(paste0('\nINFO: Pruning high-count outlier ', high_count_samples))
+      cat('\n')
+      print(pgcounts[pgcounts$Sample %in% high_count_samples,])
+      psilac_dat[, c(high_count_samples) ] = NULL   # remove sample columns from wide table
+      dat.long <- dat.long[! (Sample %in% high_count_samples)] # remove rows from long table
+    }
+    if(length(high_count_samples) + length(low_count_samples) >0){
+      ezwrite(x = psilac_dat,output_dir = opt$outdir ,output_filename = 'psilac_data_output.tsv')
+      tryTo('INFO: Plotting counts of the filltered files',{
+        plot_silac_counts(DT.long = dat.long,
+                          output_dir = QC_dir,
+                          intensity_cutoff = 0,
+                          name = 'filtered_',
+                          height = 6, 
+                          width = 12)
+      }, 'ERROR: failed!')
+    }
+  }, 'ERROR: failed!')
+  
+  ## Plotting intensity distribution
   tryTo('INFO: Plotting intensity distribution',{
     plot_silac_pg_intensity(DT.long = dat.long,
                              output_dir = QC_dir,
-                             height = 6, 
+                             height = 10, 
                              width = 12)
   }, 'ERROR: failed!')
+  
+  #### Cluster analysis ############################################
+  cluster_dir <- paste0(opt$outdir, '/Clustering/')
+  if(! dir.exists(cluster_dir)){
+    dir.create(cluster_dir, recursive = T)
+  }
+  
+  ## PCA
+  tryTo('INFO: Plotting PCA',{
+    psilac_pca(DT = psilac_dat,
+               output_dir = cluster_dir,
+               output_filename = 'PCA')
+  }, 'ERROR: failed!')
+  
+  ## UMAP
+  tryTo('INFO: Plotting UMAP',{
+    psilac_umap(DT = psilac_dat,
+                output_dir = cluster_dir,
+                output_filename = 'UMAP')
+  }, 'ERROR: failed!')
+  
+  
+  #### Caculate half life #############################
+  HL_dir <- paste0(opt$outdir, '/HALF_Life/')
+  if(! dir.exists(HL_dir)){
+    dir.create(HL_dir, recursive = T)
+  }
+  ## Caculate the remaining light peptide by L/(L+H)
+  degradation_ratio=L_remain_channel(DT = psilac_dat,
+                                     output_dir = HL_dir ,
+                                     output_filename ='remaining_light_peptide_ratio' )
+  ## Caculate the remaining heavy peptide by H/(L+H)
+  synthesis_ratio=H_remain_channel(DT = psilac_dat,
+                                   output_dir = HL_dir ,
+                                   output_filename ='remaining_heavy_peptide_ratio' )
+  
+  ## Caculate the remaining heavy peptide and light peptide ration
+  
+  
 }
 
 
 quit()
-
