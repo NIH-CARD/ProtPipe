@@ -4,9 +4,6 @@ if __name__ == '__main__':
     #### VERSION ##################################################################################
     class singularity:
         imagename = 'src/diann-1.8.1.sif'
-        library = 'library://wellerca/diann/1.8.1:0.9'
-        md5 = '35644c1d7217f0c65727b8fb9c8bfaae'
-        version = '3'
     
     diann_version = '1.8.1'
     git_repo = 'https://www.github.com/cory-weller/ProtPipe'
@@ -315,8 +312,6 @@ if __name__ == '__main__':
     if check_singularity(singularity):
         logger.info(f"INFO: Singularity version 3 good to go")
     
-    if validate_sif(singularity):
-        logger.info(f"INFO: singularity image passes checks")
 
     total_errors = len(logger.arg_errors + logger.line_errors + logger.permission_errors)
     if total_errors > 0:
