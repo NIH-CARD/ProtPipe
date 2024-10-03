@@ -23,6 +23,10 @@ This workflow requires that [`Singularity`](https://sylabs.io/singularity) be av
 To run on your personal/local non-Linux machine, Mac users need to first install a number of dependencies. Windows users would either need to use a virtual machine, or run things through the Windows Subsystem for Linux (WSL). Explaining the installation of `singularity` on these non-Linux systems is beyond the scope of this guide, so we defer to [the documentation here](https://docs.sylabs.io/guides/3.0/user-guide/installation.html).
 
 # Predicting Protein Abundances (running DIA-NN)
+You will need to manually build your singularity container for running DIA-NN, which requires agreement to their license terms (see their [GitHub Page](https://github.com/vdemichev/DiaNN/).
+
+The singularity definition file is contained in [`diann.def`](src/diann-1.8.1.def). With this file, you can run `sudo singularity build diann.sif diann-1.8.1.def`. After the build completes, ensure the `sif` file is moved to 'src/diann-1.8.1.sif'.
+ 
 After editing the contents of [`config.txt`](config.txt), or generating a new file to specify with `--cfg newfile.txt`:
 ```bash
 # Submit to SLURM
