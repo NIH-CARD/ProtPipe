@@ -22,11 +22,10 @@ fi
 
 #### R ANALYSIS ####################################################################################
 r_sif="src/R.sif"
-r_sif_sha256_desired='449c74e3c0a5a82a65fa70e44f409c31c6fc215186201ad2650cc2425694e26b'
+r_sif_sha256_desired='91c7e63ed529a50455e810a7911424b71b62a05180eab4db93f3d172a6788ee7'
 if [ ! -f "${r_sif}" ]; then
-    echo "INFO: pulling image from Singularity cloud"
-    singularity pull --arch amd64 library://wellerca/protpipe/4.3.1:sha256.449c74e3c0a5a82a65fa70e44f409c31c6fc215186201ad2650cc2425694e26b
-    mv 4.3.1_sha256.449c74e3c0a5a82a65fa70e44f409c31c6fc215186201ad2650cc2425694e26b.sif "${r_sif}"
+    echo "INFO: pulling image from quay.io"
+    singularity pull src/R.sif docker://quay.io/datatecnica/protpipe:latest
 else
     echo "INFO: ${r_sif} already exists, skipping download"
 fi
