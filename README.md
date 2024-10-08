@@ -38,6 +38,12 @@ src/diann.sh --cfg config.txt
 
 # Post-analysis
 
+First you must retrieve the pre-built singularity image with the required `R` version and package dependencies. You can retrieve the image by executing:
+
+```bash
+singularity pull src/R.sif docker://quay.io/datatecnica/protpipe:latest
+```
+
 ## Running containerized interactive `R` session
 You can start an interactive R session within the container as follows:
 
