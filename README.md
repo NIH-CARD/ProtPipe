@@ -22,6 +22,62 @@ This workflow requires that [`Singularity`](https://sylabs.io/singularity) be av
 
 To run on your personal/local non-Linux machine, Mac users need to first install a number of dependencies. Windows users would either need to use a virtual machine, or run things through the Windows Subsystem for Linux (WSL). Explaining the installation of `singularity` on these non-Linux systems is beyond the scope of this guide, so we defer to [the documentation here](https://docs.sylabs.io/guides/3.0/user-guide/installation.html).
 
+## Converting Mass Spec file formats
+
+DIA-NN cannot handle some propietary file formats such as thermo fisher RAW. Thus these files must
+be converted (i.e. to mzML) prior to running DIA-NN. Conversion can be done with the included script
+[pwiz-convert.sh](src/pwiz-convert.sh). 
+
+Conversion can be done by specifying either
+* a single input file with `--file`
+* an entire directory with `--dir`
+* a text file that lists inputs, one per line, with `--list`
+Along with a single output directory with `--out`.
+
+For example:
+```
+bash src/pwiz-convert.sh --file myfile.raw --out mzml_outdir
+bash src/pwiz-convert.sh --dir path/to/rawfiles/ --out mzml_outdir
+bash src/pwiz-convert.sh --list rawfiles.txt --out mzml_outdir
+
+```
+
+Mass spec file conversion is handled by ProteoWizard (via wine in a singularity container).
+A writable sandboxed version of the container (which is required to run ProteoWizard) was built
+and modified from a [docker image](docker://chambm/pwiz-skyline-i-agree-to-the-vendor-licenses) on
+March 02 2023. Steps were modified from [here](https://github.com/jspaezp/elfragmentador-data#setting-up-msconvert-on-singularity-).
+
+<details><summary>Building pwiz container</summary>
+
+
+```bash
+# Build writable singularity sandbox image based on docker image
+singularity build --sandbox pwiz_sandbox docker://chambm/pwiz-skyline-i-agree-to-the-vendor-licenses
+
+# Modified pwiz_sandbox/usr/bin/mywine
+echo """#!/bin/sh
+
+GLOBALWINEPREFIX=/wineprefix64
+MYWINEPREFIX=/mywineprefix/
+
+if [ ! -L "$MYWINEPREFIX"/dosdevices/z: ] ; then 
+  mkdir -p "$MYWINEPREFIX"/dosdevices
+  cp "$GLOBALWINEPREFIX"/*.reg "$MYWINEPREFIX"
+  ln -sf "$GLOBALWINEPREFIX/drive_c" "$MYWINEPREFIX/dosdevices/c:"
+  ln -sf "/" "$MYWINEPREFIX/dosdevices/z:"
+  echo disable > $MYWINEPREFIX/.update-timestamp        # Line being added
+  echo disable > $GLOBALWINEPREFIX/.update-timestamp    # Line being added
+fi 
+
+export WINEPREFIX=$MYWINEPREFIX
+wine "$@"
+""" > pwiz_sandbox/usr/bin/mywine
+
+tar -czvf pwiz_sandbox.tar.gz pwiz_sandbox
+rclone copy pwiz_sandbox.tar.gz onedrive:/singularity       # upload archive to cloud
+```
+</details>
+
 # Predicting Protein Abundances (running DIA-NN)
 You will need to manually build your singularity container for running DIA-NN, which requires agreement to their license terms (see their [GitHub Page](https://github.com/vdemichev/DiaNN/) for more info).
 
@@ -96,58 +152,3 @@ Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing
 ```
 
 
-## Converting Mass Spec file formats
-
-DIA-NN cannot handle some propietary file formats such as thermo fisher RAW. Thus these files must
-be converted (i.e. to mzML) prior to running DIA-NN. Conversion can be done with the included script
-[pwiz-convert.sh](src/pwiz-convert.sh). 
-
-Conversion can be done by specifying either
-* a single input file with `--file`
-* an entire directory with `--dir`
-* a text file that lists inputs, one per line, with `--list`
-Along with a single output directory with `--out`.
-
-For example:
-```
-bash src/pwiz-convert.sh --file myfile.raw --out mzml_outdir
-bash src/pwiz-convert.sh --dir path/to/rawfiles/ --out mzml_outdir
-bash src/pwiz-convert.sh --list rawfiles.txt --out mzml_outdir
-
-```
-
-Mass spec file conversion is handled by ProteoWizard (via wine in a singularity container).
-A writable sandboxed version of the container (which is required to run ProteoWizard) was built
-and modified from a [docker image](docker://chambm/pwiz-skyline-i-agree-to-the-vendor-licenses) on
-March 02 2023. Steps were modified from [here](https://github.com/jspaezp/elfragmentador-data#setting-up-msconvert-on-singularity-).
-
-<details><summary>Building pwiz container</summary>
-
-
-```bash
-# Build writable singularity sandbox image based on docker image
-singularity build --sandbox pwiz_sandbox docker://chambm/pwiz-skyline-i-agree-to-the-vendor-licenses
-
-# Modified pwiz_sandbox/usr/bin/mywine
-echo """#!/bin/sh
-
-GLOBALWINEPREFIX=/wineprefix64
-MYWINEPREFIX=/mywineprefix/
-
-if [ ! -L "$MYWINEPREFIX"/dosdevices/z: ] ; then 
-  mkdir -p "$MYWINEPREFIX"/dosdevices
-  cp "$GLOBALWINEPREFIX"/*.reg "$MYWINEPREFIX"
-  ln -sf "$GLOBALWINEPREFIX/drive_c" "$MYWINEPREFIX/dosdevices/c:"
-  ln -sf "/" "$MYWINEPREFIX/dosdevices/z:"
-  echo disable > $MYWINEPREFIX/.update-timestamp        # Line being added
-  echo disable > $GLOBALWINEPREFIX/.update-timestamp    # Line being added
-fi 
-
-export WINEPREFIX=$MYWINEPREFIX
-wine "$@"
-""" > pwiz_sandbox/usr/bin/mywine
-
-tar -czvf pwiz_sandbox.tar.gz pwiz_sandbox
-rclone copy pwiz_sandbox.tar.gz onedrive:/singularity       # upload archive to cloud
-```
-</details>
