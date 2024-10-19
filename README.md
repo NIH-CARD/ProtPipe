@@ -153,30 +153,41 @@ Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing
 ```
 ## Parametrization and command line options
 ```
---pgfile	Input file of Protein Group Intensity (from DIA-NN or Spectronaut). *Required*
-          eg: --pgfile data/protein_groups.tsv
---design	Comma- or tab-delimited file specifying the experimental design. 	*Required*	
-          eg:--design design/experiment_design.tsv
---ip	Protein name of the IP.	*Required for AMPS*		 
-      eg:--ip UNC13A
---hla	The HLA typing information.	*Required for Immunopeptidome*			 	
-      eg:--hla HLA_typing.csv
---base	Base for log transformation of intensity data
-        default:2
-        eg:--base 2
+--pgfile  	Input file of Protein Group Intensity (from DIA-NN or Spectronaut). *Required*
+          	eg: --pgfile data/protein_groups.tsv
+--design  	Comma- or tab-delimited file specifying the experimental design. 	*Required*	
+          	eg:--design design/experiment_design.tsv
+--ip	 	Protein name of the IP.	*Required for AMPS*		 
+		eg:--ip UNC13A
+--hla	  	The HLA typing information.	*Required for Immunopeptidome*			 	
+		eg:--hla HLA_typing.csv
+--base   	Base for log transformation of intensity data
+          	default:2
+          	eg:--base 2
 --normalize	Method to normalize sample intensities ('shift', 'scale', 'none').
-            default:none
-            eg:	--normalize shift
+            	default:none
+		eg:--normalize shift
 --exclude	Semicolon-separated string of files to exclude from analysis.
-	 		    eg: --exclude sample1_name
---sds	Filter out samples with protein group counts > N standard deviations from the mean.
-      default:3
-      eg: --sds 3
---minintensity	Minimum linear (not log) intensity.	 	0	--minintensity 500
---fdr	False Discovery Rate threshold for differential abundance analysis.	 	0.01	--fdr 0.01
---foldchange	Minimum linear fold change for labeling protein groups in differential abundance analysis.	 	2	--foldchange 2
+		eg: --exclude sample1_name
+--sds		Filter out samples with protein group counts > N standard deviations from the mean.
+		default:3
+		eg: --sds 3
+--minintensity	Minimum linear (not log) intensity.
+		default:0
+		eg: --minintensity 500
+--fdr		False Discovery Rate threshold for differential abundance analysis.
+	 	default:0.01
+		eg:--fdr 0.01
+--foldchange	Minimum linear fold change for labeling protein groups in differential abundance analysis.
+	 	default:2
+		eg:--foldchange 2
+--enrich	Cutoff p-value for gene enrichment analysis.
+		default:0.01
+		eg:--enrich 0.01
+--gsea		Cutoff False Discovery Rate for GSEA analysis.
+	 	default:0.01
+		eg:--gsea 0.01
+
 ```
---enrich	Cutoff p-value for gene enrichment analysis.	 	0.01	--enrich 0.01
---gsea	Cutoff False Discovery Rate for GSEA analysis.	 	0.01	--gsea 0.01
 
 
