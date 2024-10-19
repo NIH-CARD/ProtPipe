@@ -6,6 +6,7 @@ This repository facilitates quick, simple, and reproducible access to Data Indep
 
 We include a convenient wrapper script for running DIA-NN inside a pre-built singularity image to first estimate protein abundance from raw mass spec output. Protein abundance estimates (accepting estimates from both `DIA-NN` and `Spectronaut`) can  be processed in a preconfigured R environment, generating QC reports, and various analyses and visualizations.
 
+The ProtPipe web application (http://34.42.19.73:8501/) provides a user-friendly, interactive interface for performing differential expression analysis with a single click. It is dedicated to downstream analysis following database searches.
 
 # Quick-start
 
@@ -150,5 +151,24 @@ Requires the csv or tsv output from `FragPipe` and a `csv` specifying HLA typing
     --out EXAMPLES/IMMUNOPEPTIDOME/ \
     --hla EXAMPLES/IMMUNOPEPTIDOME/HLA_typing.csv
 ```
+## Parametrization and command line options
+
+--pgfile	Input file of Protein Group Intensity (from DIA-NN or Spectronaut). *Required*
+          eg: --pgfile data/protein_groups.tsv
+--design	Comma- or tab-delimited file specifying the experimental design. 	*Required*	
+          eg:--design design/experiment_design.tsv
+--ip	Protein name of the IP.	*Required for AMPS*		 
+      eg:--ip UNC13A
+--hla	The HLA typing information.	*Required for Immunopeptidome*			 	
+      eg:--hla HLA_typing.csv
+--base	Base for log transformation of intensity data.	 	10	--base 2
+--normalize	Method to normalize sample intensities ('shift', 'scale', 'none').	 	none	--normalize shift
+--exclude	Semicolon-separated string of files to exclude from analysis.	 		--exclude sample1_name
+--sds	Filter out samples with protein group counts > N standard deviations from the mean.	 	3	--sds 3
+--minintensity	Minimum linear (not log) intensity.	 	0	--minintensity 500
+--fdr	False Discovery Rate threshold for differential abundance analysis.	 	0.01	--fdr 0.01
+--foldchange	Minimum linear fold change for labeling protein groups in differential abundance analysis.	 	2	--foldchange 2
+--enrich	Cutoff p-value for gene enrichment analysis.	 	0.01	--enrich 0.01
+--gsea	Cutoff False Discovery Rate for GSEA analysis.	 	0.01	--gsea 0.01
 
 
