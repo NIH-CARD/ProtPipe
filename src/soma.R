@@ -119,10 +119,9 @@ usage_string="Rscript %prog --input [filename]"
 opt=parse_args(OptionParser(usage = usage_string, option_list))
 
 
-#Package and Source Code#######################################################################
-source('src/functions.R')
-package_list = c('SomaDataIO' ,'data.table', 
-                 'reshape2','ggplot2','umap','ggdendro','ggrepel',
+#### PACKAGES AND SOURCE CODE#######################################################################
+package_list = c('SomaDataIO' ,'data.table', 'tidyr','purrr',
+                 'reshape2','ggplot2','umap','ggdendro','ggrepel','dendextend',
                  'clusterProfiler','org.Hs.eg.db','DOSE','enrichplot',
                  'dplyr',
                  'pheatmap')
@@ -135,6 +134,8 @@ if(all((lapply(package_list, require, character.only=TRUE)))) {
   cat("ERROR: One or more packages not available. Are you running this within the container?\n")
   quit()
 }
+source('src/functions.R')
+
 
 
 #### IMPORT AND FORMAT DATA#########################################################################
@@ -144,12 +145,23 @@ tryTo(paste0('INFO: Reading input file ', opt$input),{
 
 if (!is.null(opt$condition)) {
   tryTo(paste0('INFO: Reading condition file ', opt$condition),{
-    condition=fread(opt$condition)
+    condition=read.csv(opt$condition, colClasses = c("SampleId" = "character"))
+    condition2=my_adat %>%
+      select_if(~ !is.numeric(.))%>%
+      filter(SampleType == "Sample")
+    condition=condition%>%
+      right_join(condition2, by = "SampleId")%>%
+      rename(SampleGroup = SampleGroup.x, SampleGroup_2 = SampleGroup.y)
   }, paste0('ERROR: problem trying to load ', opt$input, ', does it exist?'))
 }else{
   condition <- my_adat %>%
     select_if(~ !is.numeric(.))
 }
+my_adat=condition %>% 
+  select(SampleId, SampleGroup) %>%
+  full_join(my_adat, by = "SampleId") %>%
+  rename(SampleGroup = SampleGroup.x) %>%
+  select(-SampleGroup.y)
 
 ## MAKE DIRS
 if(! dir.exists(opt$outdir)){
@@ -162,14 +174,6 @@ tryTo(paste0('INFO: Writing the standard CSV output '), {
   dat_all=soma_all_output(DT = my_adat,
                           output_dir = opt$outdir)
   dat_filter=Buffer_filter(DT = dat_all,output_dir = opt$outdir)
-  if (!is.null(opt$condition)){
-    tryTo(paste0('INFO: Reading condition file ',opt$condition),{
-      condition=read.csv(opt$condition)
-    }, paste0('ERROR: problem trying to load ', opt$condition, ', does it exist?'))
-  }else{
-    condition=my_adat%>%
-    select(-contains("seq."))
-    }
   
 }, 'ERROR: failed! Check for missing/corrupt headers?')
 
@@ -186,22 +190,24 @@ QC_dir=paste0(opt$outdir, '/QC/')
 if(! dir.exists(QC_dir)){
   dir.create(QC_dir, recursive = T)
 }
-## Get counts of [N=unique gene groups with `Intensity` > 0]
+## Get counts of [N=unique gene groups with `Intensity` > buffer]
 tryTo('INFO: Cabulating protein group counts',{
   pgcounts=dat_filter_long[, .N, by=Sample]
+  pgcounts <- merge(pgcounts, condition[,grep('SampleId|SampleGroup|RowCheck',colnames(condition))], by.x = 'Sample', by.y = 'SampleId',all=T)
+  pgcounts$SampleGroup <- ifelse(is.na(pgcounts$SampleGroup), pgcounts$Sample, pgcounts$SampleGroup)
+  pgcounts=pgcounts %>%
+    filter(!is.na(N)) 
   # Order samples by ascending counts
   ezwrite(x = pgcounts, 
           output_dir = QC_dir, 
           output_filename = 'protein_group_counts_over_buffer.tsv')
   soma_plot_counts(counts = pgcounts,
-                   condition_file = condition,
                    output_dir = QC_dir)
  }, 'ERROR: failed!')
 
 ## Plotting intensity distribution
 tryTo('INFO: Plotting intensity distribution',{
-  plot_pg_intensities(dat_long, QC_dir, 'intensities.pdf')
-  plot_pg_intensities(dat_all_long, QC_dir, 'all_intensities.pdf')
+  plot_soma_pg_intensities(DT=dat_all_long, condition_file = condition,output_dir=QC_dir)
 }, 'ERROR: failed!')
 
 ## Missing value check and plot
@@ -218,13 +224,12 @@ if(! dir.exists(cluster_dir)){
 
 # Hierarchical Clustering
 tryTo('INFO: running Hierarchical Clustering',{
-  plot_hierarchical_cluster(dat, cluster_dir)
+  plot_hierarchical_cluster(DT = dat, output_dir = cluster_dir)
 }, 'ERROR: failed!')
 
 # PCA
 tryTo('INFO: running PCA and plotting first two components',{
-  pca=soma_get_PCs(dat,condition)
-  soma_plot_PCs(pca, cluster_dir, 'PCA.pdf')
+  soma_plot_PCs(adat =my_adat ,DT = dat,condition_file =condition ,output_dir = cluster_dir)
 }, 'ERROR: failed!')
 
 
@@ -258,19 +263,11 @@ if (all(is.na(condition$SampleGroup)))  {
         treatment_sample_names <- intersect(colnames(dat), condition$SampleId[condition$SampleGroup == treat])
         if (length(treatment_sample_names)==0) {next}
         control_sample_names <- intersect(colnames(dat), condition$SampleId[condition$SampleGroup == control])
-        t_test <- do_t_test(DT = dat, 
+        t_test <- soma_ttest(DT = dat, 
                             treatment_samples = treatment_sample_names, 
                             control_samples = control_sample_names)
-        dat_Buffer_Calibrator <- dat_all %>% 
-          select(AptName, Buffer, Calibrator)
-        t_test <- merge(dat_Buffer_Calibrator, t_test, by = "AptName")%>%
-          select(AptName, TargetFullName, Protein_Group, Genes, Buffer, Calibrator, 
-                 treatment_estimate, control_estimate, logFC, P.Value, adj.P.Val)
-        # Rename columns
-        colnames(t_test)[colnames(t_test) == "treatment_estimate"] <- paste0(treat,'_estimate')
-        colnames(t_test)[colnames(t_test) == "control_estimate"] <- paste0(control,'_estimate')
-        
-        ezwrite(t_test[order(t_test$adj.P.Val),], DI_dir, paste0(treat, '_vs_', control, '_ttest.tsv'))
+        ezwrite(t_test[order(t_test$adj.P.Val),], DI_dir, paste0(treat, '_vs_', control, '.tsv'))
+  
         soma_plot_volcano(DT.original = t_test,
                           out_dir =DI_dir ,
                           output_filename = paste0(treat, '_vs_', control),
@@ -278,6 +275,8 @@ if (all(is.na(condition$SampleGroup)))  {
                           fdr_threshold = opt$fdr_threshold,
                           labelgene =opt$labelgene )
         soma_box_plot(soma_adat = my_adat,
+                      treatment =treat,
+                      control = control,
                       out_dir = DI_dir,
                       gene = opt$labelgene,
                       t_test = t_test,
