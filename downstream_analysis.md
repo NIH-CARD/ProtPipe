@@ -9,7 +9,7 @@ If you have the output file from the search enegine, you can run this downstream
 Opean your R and install the dependencies:
 
 ```R
-bioc_deps <- c("clusterProfiler", "org.Hs.eg.db", "limma" )
+bioc_deps <- c("clusterProfiler", "org.Hs.eg.db", "limma","STRINGdb" )
 cran_deps <- c("optparse","corrplot", "data.table", "ggplot2", "umap","ggbeeswarm","ggrepel",'ggdendro', 
                "pheatmap", "reshape2", "rlang", "magick",'ecodist',
                "ggthemes", "dplyr", "tidyr", "foreach") 
