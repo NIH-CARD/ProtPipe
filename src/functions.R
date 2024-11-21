@@ -5,7 +5,7 @@ tryTo <- function(infomsg='', cmd,  errormsg='ERROR: failed!') {
     # tryTo is a simple tryCatch wrapper, taking a command + message.
     # If the try block fails, an error is printed and R quits.
     cat(paste0(infomsg, '\n'))
-    tryCatch(cmd, 
+    tryCatch(cmd,
         error = function(e){
             cat(paste0(errormsg, '\n', e))
             quit(status=1)
@@ -15,16 +15,16 @@ tryTo <- function(infomsg='', cmd,  errormsg='ERROR: failed!') {
 }
 
 replace_NAs <- function(DT, sdcols, newvalue) {
-    # Within data.table `DT`, 
-    # for `sdcols` specified columns, 
+    # Within data.table `DT`,
+    # for `sdcols` specified columns,
     # replaces all NA with `newvalue`
     DT=data.table(DT)
     DT[, (sdcols) := lapply(.SD, function(x) {ifelse(is.na(x),newvalue,x)}), .SDcols=sdcols]
 }
 
 replace_values <- function(DT, sdcols, oldvalue, newvalue) {
-    # Within data.table `DT`, 
-    # for `sdcols` specified columns, 
+    # Within data.table `DT`,
+    # for `sdcols` specified columns,
     # replaces all NA with `newvalue`
     DT[, (sdcols) := lapply(.SD, function(x) {ifelse(x==oldvalue,newvalue,x)}), .SDcols=sdcols]
 }
@@ -38,7 +38,7 @@ ezwrite <- function(x, output_dir, output_filename) {
         row.names=F,
         col.names=T,
         sep='\t')
-    
+
 }
 
 convert_log_to_raw <- function(DT.original, log_base) {
@@ -59,7 +59,7 @@ standardize_format <- function(DT.original) {
         DT[, 'Protein.Names' := NULL]
         DT[, 'First.Protein.Description' := NULL]
         setnames(DT, 'Protein.Group', 'Protein_Group')
-    } 
+    }
     else if('EG.PrecursorId' %in% colnames(DT)) {
       print("Spectronaut input")
       setnames(DT, 'EG.PrecursorId', 'Peptide_Sequence')
@@ -108,7 +108,7 @@ standardize_format <- function(DT.original) {
 }
 
 trim_colnames <- function(DT) {
-    colnames_out <- gsub(pattern="\\[.*\\] ", replacement='', x=colnames(DT))   # trim leading [N] 
+    colnames_out <- gsub(pattern="\\[.*\\] ", replacement='', x=colnames(DT))   # trim leading [N]
     colnames_out <- gsub(pattern="\\..*\\.PG\\.Quantity|\\.PG\\.Quantity|\\..*Quantity.*", replacement='', x=colnames_out)   # remove suffix
     return(colnames_out)
 }
@@ -117,32 +117,32 @@ unique_data <- function(DT, col,output_dir,output_filename) {
   DT_unique <- DT %>%
     # Calculate missing values for all columns except specified ones
     mutate(missing_value = rowSums(is.na(select(., -contains("Protein_Group|Genes|Precursor|Peptide_Sequence"))))) %>%
-    
+
     # Calculate median values for numeric columns except specified ones
     mutate(median = rowMedians(as.matrix(select(., -contains("Protein_Group|Genes|Precursor|Peptide_Sequence|missing_value")) %>%
                                            select_if(is.numeric)), na.rm = TRUE)) %>%
-    
+
     # Group by the specified column dynamically
     group_by(!!sym(col))%>%
-    
+
     # Filter rows with minimum missing values and maximum median intensity
     filter(missing_value == min(missing_value)) %>%
     slice(which.max(median)) %>%
     ungroup() %>%
-    
+
     # Remove the temporary columns
     select(-c(missing_value, median))
-  
+
   # Write the result to a CSV file
   ezwrite(DT_unique, output_dir = output_dir,output_filename = output_filename)
   return(DT_unique)
 }
 
-  
+
 melt_intensity_table <- function(DT) {
     # Converts intensity data.table to long format
     # info_cols <- c('Protein_Group', 'Genes', 'First_Protein_Description')
-  DT.long <- melt(DT, 
+  DT.long <- melt(DT,
                   measure.vars=names(DT)[sapply(DT, function(x) all(is.numeric(x)))],
                   variable.name='Sample',
                   value.name='Intensity')
@@ -169,17 +169,17 @@ plot_pg_counts <- function(DT.long, output_dir) {
       geom_bar(stat="identity")+
       theme_classic()+
       labs(fill = "",x="",y='Number of Protein Groups')+
-      scale_x_discrete(guide = guide_axis(angle = 90))+ 
+      scale_x_discrete(guide = guide_axis(angle = 90))+
       geom_text(aes(label=N, y=N + (0.05*max(pgcounts$N))))
   }
-  
+
   if (n_samples>50){
     ggsave(plot = p,filename = paste0(output_dir, 'protein_group_nonzero_counts.pdf'),width = n_samples/10,height = 6)
     cat(paste0('   -> ', output_dir, 'protein_group_nonzero_counts.pdf', '\n'))
   }else {
     ggsave(plot = p,filename = paste0(output_dir, 'protein_group_nonzero_counts.pdf'),width = 8,height = 6)
     cat(paste0('   -> ', output_dir, 'protein_group_nonzero_counts.pdf', '\n'))
-  } 
+  }
   # group with sd
   summary_data <- pgcounts %>%
     group_by(Condition) %>%
@@ -210,17 +210,17 @@ plot_pep_counts <- function(DT, output_dir, output_filename) {
       geom_bar(stat="identity", fill="#67a9cf")+
       theme_classic()+
       labs(fill = "",x="Sample",y='Number of Peptides')+
-      scale_x_discrete(guide = guide_axis(angle = 90))+ 
+      scale_x_discrete(guide = guide_axis(angle = 90))+
       geom_text(aes(label=N, y=N + (0.05*max(pep_counts$N))))
   }
-  
+
   if (n_samples>50){
     ggsave(plot = p,filename = paste0(output_dir, output_filename),width = n_samples/10,height = 6)
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
   }else {
     ggsave(plot = p,filename = paste0(output_dir, output_filename),width = 8,height = 6)
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
-  } 
+  }
 }
 
 plot_pg_thresholds <- function(DT, output_dir, output_filename) {
@@ -230,7 +230,7 @@ plot_pg_thresholds <- function(DT, output_dir, output_filename) {
             geom_point(shape=21, alpha=0.5) +
             theme_classic() +
             labs(x=paste0('Minimum Log[', opt$log_base, '](Intensity) Threshold'),
-            y=paste0('N Protein Groups where Log[', opt$log_base, '](Intensity)> 0')) 
+            y=paste0('N Protein Groups where Log[', opt$log_base, '](Intensity)> 0'))
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
     ggsave(g,
         filename=paste0(output_dir, output_filename),
@@ -276,7 +276,7 @@ plot_density <- function(DT.original, output_dir, output_filename) {
         theme(panel.border = element_blank()) +
         ylim(0,0.3)
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
-    ggsave(g, 
+    ggsave(g,
         filename=paste0(output_dir, output_filename),
         height=2.5*n_samples,
         width=30,
@@ -313,14 +313,14 @@ mean_normalize_intensity <- function(DT.original) {
 plot_pg_intensities <- function(DT, output_dir, output_filename) {
   DT=data.table(DT)
     n_samples <- length(unique(DT$Sample))
-    g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
+    g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) +
         geom_boxplot(outlier.shape = NA, fill="#67a9cf") +
         theme_classic() +
         labs(fill = "",x="",y='Log10 Protein Intensity') +
         theme(axis.text.x = element_text( angle=90)) +
         geom_boxplot(width=0.1) +
         geom_hline(color='#ef8a62', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity), 0.50)))
-  
+
     if (n_samples>50){
       ggsave(plot = g,filename = paste0(output_dir, output_filename),width = n_samples/10,height =6)
       cat(paste0('   -> ', output_dir, output_filename, '\n'))
@@ -332,14 +332,14 @@ plot_pg_intensities <- function(DT, output_dir, output_filename) {
 
 plot_pep_intensities <- function(DT, output_dir, output_filename) {
   n_samples <- length(unique(DT$Sample))
-  g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
+  g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) +
     geom_violin(trim=FALSE, fill="steelblue")+
     theme_classic()+
     labs(fill = "",x="",y='Log10 Peptide Intensity')+
     theme(axis.text.x = element_text( angle=90))+
     geom_boxplot(width=0.1)+
     geom_hline( color='red', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity), 0.50)))
-  
+
     if (n_samples>50){
       ggsave(plot = g,filename = paste0(output_dir, output_filename),width = n_samples/10,height =6)
       cat(paste0('   -> ', output_dir, output_filename, '\n'))
@@ -357,9 +357,9 @@ plot_correlation_heatmap <- function(DT.corrs, output_dir, output_filename) {
   mid_limit <- as.numeric(format(((max_limit + min_limit) / 2), digits=3))
   g <- ggplot(DT.corrs, aes(x=SampleA, y=SampleB, fill=Spearman, label=Spearman)) +
     geom_tile() +
-    geom_text(color='gray10') + 
+    geom_text(color='gray10') +
     theme_classic() +
-    scale_fill_gradient2(low = "skyblue", high = "tomato1", mid = "white", 
+    scale_fill_gradient2(low = "skyblue", high = "tomato1", mid = "white",
                          midpoint = mid_limit, limit = c(min_limit,max_limit),
                          space = "Lab", breaks=c(min_limit, mid_limit, max_limit),
                          name="Spearman\nCorrelation\n") +
@@ -372,21 +372,21 @@ plot_correlation_heatmap <- function(DT.corrs, output_dir, output_filename) {
         width=2*n_samples,
         units='cm',limitsize = FALSE)
   cat(paste0('   -> ', output_dir, output_filename, '\n'))
-  
-} 
+
+}
 
 get_spearman <- function(DT.original) {
   DT <- DT.original
   #### Pairwise correlations between sample columns
   dt.samples <- DT[,-c(1:2)]     # Ignore info columns (subset to only intensity values)
-  dt.corrs <- cor(log2(as.matrix(na.omit(dt.samples))+1), method='spearman')  
-  
+  dt.corrs <- cor(log2(as.matrix(na.omit(dt.samples))+1), method='spearman')
+
   # Format correlations as 3 digits
   dt.corrs <- data.table(melt(dt.corrs, measure.vars=dt.corrs[,rn], value.name='Spearman'))
   dt.corrs <- dt.corrs[! is.na(Spearman)]
   setnames(dt.corrs, c('Var1', 'Var2'), c('SampleA','SampleB'))
   dt.corrs[, Spearman := as.numeric(format(Spearman, digits=3))]
-  
+
   return(dt.corrs[])
 }
 
@@ -394,7 +394,7 @@ get_pearson_matrix <- function(DT.original) {
     DT <- DT.original
     #### Pairwise correlations between sample columns
     dt.samples <- DT[,-c(1:2)]     # Ignore info columns (subset to only intensity values)
-    dt.corrs <- cor(as.matrix(na.omit(dt.samples)), method='pearson')  
+    dt.corrs <- cor(as.matrix(na.omit(dt.samples)), method='pearson')
 
     dt.corrs <- as.data.table(dt.corrs, keep.rownames=T)
     #dt.corrs <- melt(dt.corrs, measure.vars=dt.corrs[,rn], value.name='Spearman')
@@ -421,11 +421,11 @@ get_PCs <- function(DT) {
     mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
     # Filter rows where the sum of numeric values is greater than 0
     filter(rowSums(.) > 0)
-  
+
   # Apply log2 transformation
   log2_cluster_data <- cluster_data %>%
     mutate(across(everything(), ~ log2(. + 1)))
-  
+
   ##PCA and plot
   pca_data=t(log2_cluster_data)
   pca=prcomp(pca_data, center = TRUE, scale. = TRUE)#pca,remember if you use the sample to do the pca,you need to transpose
@@ -457,11 +457,11 @@ plot_hierarchical_cluster <- function(DT, output_dir) {
     mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
     # Filter rows where the sum of numeric values is greater than 0
     filter(rowSums(.) > 0)
-  
+
   # Apply log2 transformation
   log2_cluster_data <- cluster_data %>%
     mutate(across(everything(), ~ log2(. + 1)))
-  
+
   dist_mat <- dist(t(log2_cluster_data)) #
   hc_cluster <- hclust(dist_mat,method = "complete")
   g <- ggdendrogram(hc_cluster, rotate=TRUE) + labs(title='Hierarchical clustering')
@@ -479,11 +479,11 @@ get_umap <- function(DT, neighbors) {
     mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
     # Filter rows where the sum of numeric values is greater than 0
     filter(rowSums(.) > 0)
-  
+
   # Apply log2 transformation
   log2_cluster_data <- cluster_data %>%
     mutate(across(everything(), ~ log2(. + 1)))
-  
+
     set.seed(100)
     DT.umap <- umap(t(log2_cluster_data), n_neighbors=neighbors)
     DT.out <- as.data.table(DT.umap$layout, keep.rownames=TRUE)
@@ -495,7 +495,7 @@ get_umap <- function(DT, neighbors) {
 plot_umap <- function(DT, output_dir, output_filename) {
     g <- ggplot(DT, aes(x=UMAP1, y=UMAP2, color=Condition)) +
     geom_point(size=4) +
-    theme_classic() 
+    theme_classic()
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
     ggsave(g, filename=paste0(output_dir, output_filename), height = 4,width = 5)
     cat(paste0('   -> ', output_dir, output_filename, '\n'))
@@ -518,7 +518,7 @@ do_t_test = function(DT,col, design_matrix,DE_dir,EA_dir) {
       #ttest table
       # Initial data transformation
       DT_ttest <- DT[,c(col, treatment_samples, control_samples)]
-      
+
       # Convert NA to 0 and add missing value calculations
       DT_ttest <- DT_ttest %>%
         # Convert NA to 0
@@ -541,14 +541,14 @@ do_t_test = function(DT,col, design_matrix,DE_dir,EA_dir) {
       # Restore row names from PTM column and remove the PTM column
       rownames(DT_ttest) <- DT_ttest[,col]
       DT_ttest[,col]=NULL
-      
+
       # Perform t-test  on treatment and control columns
       t_test <- apply(DT_ttest, 1, function(x){
         a =factor(c(rep('treatment',n_treatment),
                     rep("control",n_control)),
                   levels = c('treatment',"control"))
         fvalue=var.test(x~a)
-        if (!is.na(fvalue$p.value)){ 
+        if (!is.na(fvalue$p.value)){
           if (fvalue$p.value > 0.05){
             result <- t.test(x~a, var.equal = T)
           }else{
@@ -563,7 +563,7 @@ do_t_test = function(DT,col, design_matrix,DE_dir,EA_dir) {
         )
       })
       t_test <- rbindlist(t_test)
-      result_ttest <- cbind(DT_ttest, t_test) 
+      result_ttest <- cbind(DT_ttest, t_test)
       # Merge DT and result_ttest based on PTM column
       result_ttest <- merge(DT[, name, drop=FALSE], result_ttest, by.x=col, by.y='row.names')
       # Calculate logFC and adjust P-values using dplyr
@@ -571,7 +571,7 @@ do_t_test = function(DT,col, design_matrix,DE_dir,EA_dir) {
         mutate(logFC = log2((treatment_estimate+1) / (control_estimate + 1)),
                adj.P.Val = p.adjust(P.Value, method='BH'))
       ezwrite(result_ttest[order(result_ttest$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
-      plot_volcano(DT.original =result_ttest , 
+      plot_volcano(DT.original =result_ttest ,
                    lfc_threshold = opt$lfc_threshold,
                    fdr_threshold = opt$fdr_threshold,
                    out_dir = DE_dir,label_col = 'Genes',
@@ -592,7 +592,7 @@ do_t_test = function(DT,col, design_matrix,DE_dir,EA_dir) {
 plot_volcano <- function(DT.original, out_dir, output_filename, label_col ,lfc_threshold, fdr_threshold, labelgene) {
   options(ggrepel.max.overlaps = Inf)
   DT <- DT.original
-  
+
   # Set initial group to 'Others' and update based on thresholds
   DT <- DT %>%
     mutate(Group = 'Others',
@@ -600,7 +600,7 @@ plot_volcano <- function(DT.original, out_dir, output_filename, label_col ,lfc_t
            Group = if_else(logFC <= -lfc_threshold, 'DOWN', Group),
            Group = if_else(adj.P.Val >= fdr_threshold, 'Others', Group),
            labeltext = '')
-  
+
   # If labelgene is provided, update labeltext accordingly
   if (!is.null(labelgene)) {
     label_gene=fread(labelgene)
@@ -618,18 +618,18 @@ plot_volcano <- function(DT.original, out_dir, output_filename, label_col ,lfc_t
           arrange(logFC) %>%
           slice_head(n = 5)
       )
-    
+
     # Label top 5 genes using the specified label column
     DT <- DT %>%
       mutate(labeltext = if_else(!!sym(label_col) %in% top5_gene[[label_col]], !!sym(label_col), ''))
   }
-  
-  
-  
-  
+
+
+
+
   g <- ggplot(DT, aes(x = logFC, y = -log10(adj.P.Val))) +
     geom_point(aes(color = Group)) +
-    scale_color_manual(breaks = c("DOWN", "Others", "UP"), 
+    scale_color_manual(breaks = c("DOWN", "Others", "UP"),
                        values = c("#67a9cf", "#969696", "#ef8a62")) +
     theme_bw(base_size = 12) +
     theme(legend.position = "bottom") +
@@ -639,11 +639,11 @@ plot_volcano <- function(DT.original, out_dir, output_filename, label_col ,lfc_t
       size = 5,
       box.padding = unit(0.35, "lines"),
       point.padding = unit(0.3, "lines")) +
-    geom_hline(yintercept = -log10(fdr_threshold), linetype = "dashed") + 
-    geom_vline(xintercept = lfc_threshold, linetype = "dashed") + 
+    geom_hline(yintercept = -log10(fdr_threshold), linetype = "dashed") +
+    geom_vline(xintercept = lfc_threshold, linetype = "dashed") +
     geom_vline(xintercept = -lfc_threshold, linetype = "dashed") +
     theme_classic()
-  
+
   cat(paste0(out_dir, output_filename,'_vocanol.pdf'))
   ggsave(g, filename = paste0(out_dir, output_filename,'_vocanol.pdf'), width = 8, height = 8)
   cat(paste0('   -> ', out_dir, output_filename,'_vocanol.pdf', '\n'))
@@ -657,20 +657,20 @@ plot_volcano_pep <- function(DT.original, treatment, control, log_base, lfc_thre
   DT[logFC <= -lfc_threshold, 'Group' := 'DOWN']
   DT[adj.P.Val >= fdr_threshold, 'Group' := 'Others']
   DT[, labeltext := '']
-  
+
   up_gene_5 <- DT[Group == 'UP', ]
   up_gene_5 <- up_gene_5[order(up_gene_5$logFC,decreasing = T)[1:5],]
   down_gene_5 <- DT[Group == 'DOWN', ]
   down_gene_5 <- down_gene_5[order(down_gene_5$logFC,decreasing = F)[1:5],]
   top5_gene <- rbind(up_gene_5,down_gene_5)
   DT[Peptide_Sequence %in% top5_gene$Peptide_Sequence, labeltext := Peptide_Sequence]
-  
+
   if (!is.null(labelgene)) {
     DT[Peptide_Sequence %in% labelgene, labeltext := Peptide_Sequence]
   }
   g <- ggplot(DT, aes(x=logFC, y=-log10(adj.P.Val))) +
     geom_point(aes(color = Group)) +
-    scale_color_manual(breaks = c("DOWN", "Others", "UP"), 
+    scale_color_manual(breaks = c("DOWN", "Others", "UP"),
                        values=c("#67a9cf", "#969696","#ef8a62"))+
     theme_bw(base_size = 12) + theme(legend.position = "bottom") +
     geom_label_repel(
@@ -679,11 +679,11 @@ plot_volcano_pep <- function(DT.original, treatment, control, log_base, lfc_thre
       size = 5,
       box.padding = unit(0.35, "lines"),
       point.padding = unit(0.3, "lines"))+
-    geom_hline(yintercept=-log10(fdr_threshold), linetype="dashed")+ 
-    geom_vline(xintercept=lfc_threshold, linetype="dashed")+ 
+    geom_hline(yintercept=-log10(fdr_threshold), linetype="dashed")+
+    geom_vline(xintercept=lfc_threshold, linetype="dashed")+
     geom_vline(xintercept=-lfc_threshold, linetype="dashed")+
     theme_classic()
-  
+
   output_filename <- paste0(treatment, '_vs_', control, '.pdf')
   cat(paste0('   -> ', out_dir, output_filename, '\n'))
   ggsave(g, filename=paste0(out_dir, output_filename),width = 8,height = 8)
@@ -720,14 +720,14 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
   if (!dir.exists(dir)){
     dir.create(dir,recursive = T)
   }
-  
+
   DT <- DT.original %>%
     mutate(Group = 'Others') %>%
     mutate(Group = ifelse(logFC >= lfc_threshold, 'UP', Group)) %>%
     mutate(Group = ifelse(logFC <= -lfc_threshold, 'DOWN', Group)) %>%
     mutate(Group = ifelse(adj.P.Val >= fdr_threshold, 'Others', Group))%>%
     data.frame()
-  
+
   ##ENTREZID names########
   entrizid = data.frame(bitr(DT$Genes, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db",drop=T))
   DT <- merge(DT,entrizid,by.x='Genes',by.y='SYMBOL') %>%
@@ -735,8 +735,8 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
     arrange(desc(logFC))
   all_gene_vector=DT$logFC
   names(all_gene_vector)=DT$ENTREZID
-  
-  ## up and down regulated genes 
+
+  ## up and down regulated genes
   up_genes=DT[which(DT$logFC>=lfc_threshold&DT$adj.P.Val<=fdr_threshold),]
   down_genes=DT[which(DT$logFC<=(-lfc_threshold)&DT$adj.P.Val<=fdr_threshold),]
   print('Processing up-gene enrichment analysis')
@@ -749,16 +749,16 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
   }
   print('Processing Gene Set Enrichment Analysis')
   if (nrow(down_genes)+nrow(up_genes) >0){
-    gseGO <- gseGO(geneList=all_gene_vector, 
+    gseGO <- gseGO(geneList=all_gene_vector,
                    ont ="ALL",
                    keyType = "ENTREZID",
-                   pvalueCutoff = 0.05, 
+                   pvalueCutoff = 0.05,
                    OrgDb = 'org.Hs.eg.db')
     gseGO=setReadable(gseGO, OrgDb=org.Hs.eg.db, keyType = "ENTREZID")
     gseGO_res=gseGO@result
     if (nrow(gseGO_res) > 0) {
       p=dotplot(gseGO, showCategory=10, split=".sign") + facet_grid(.~.sign)
-      ggsave(paste0(dir,'/','gseGO_dotplot.pdf'),p,width = 10,height = 10) 
+      ggsave(paste0(dir,'/','gseGO_dotplot.pdf'),p,width = 10,height = 10)
       cat(paste0('   -> ', dir,'/','gseGO_dotplot.pdf', '\n'))
       x2 <- pairwise_termsim(gseGO)
       p=emapplot(x2)
@@ -787,13 +787,13 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
 }
 
 enrichAll = function(gene_id, all_gene_vector, outdir='.', out_prefix = NULL, width=12, height=8, enrich_pvalue=1){
-  
+
   all_gene_vector <- na.omit(all_gene_vector)
   if (!dir.exists(outdir)){
     dir.create(outdir,recursive = T)
   }
   enrich_res = data.frame()
-  ### GO 
+  ### GO
   print('Processing GO')
   GO <- enrichGO(gene          = gene_id,
                  universe      = names(all_gene_vector),
@@ -807,7 +807,7 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', out_prefix = NULL, wi
   if (nrow(GO) > 0) {
     p=dotplot(GO, showCategory=10,split='ONTOLOGY')+
       facet_grid(ONTOLOGY~.,scales = "free",space = "free")
-    
+
     g=barplot(GO, showCategory=10,split='ONTOLOGY')+
       facet_grid(ONTOLOGY~.,scales = "free",space = "free")
     if (nrow(GO) < 5) {
@@ -892,7 +892,7 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', out_prefix = NULL, wi
     } else {
       print('NO GO MF')
       }
-  
+
   # KEGG
   print('Processing KEGG')
   KEGG <- enrichKEGG(gene         = gene_id,
@@ -916,7 +916,7 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', out_prefix = NULL, wi
       print("No enriched pathways found in the KEGG object.")
       KEGG_res=data.frame()
       }
-  
+
   print('Save enrichment analysis results')
   if (nrow(KEGG_res) > 0 &nrow(GO_res) > 0) {
     GO_res$category=''
@@ -931,7 +931,7 @@ enrichAll = function(gene_id, all_gene_vector, outdir='.', out_prefix = NULL, wi
   if((nrow(GO_res) == 0)){
     ezwrite(KEGG_res, outdir, paste0(out_prefix,'_enrich_res.tsv'))
   }
-  
+
 }
 
 ##limma
@@ -963,7 +963,7 @@ do_limma=function(Log2_DT, design_matrix,DE_dir,EA_dir,lfc_threshold,fdr_thresho
         DT_limma <- DT_limma[!(DT_limma$missing_value_c >(n_control/2)&DT_limma$missing_value_c <n_control),]
         DT_limma <- DT_limma[DT_limma$missing_value != (n_treatment+n_control),]
         DT_limma[,grep('missing_value',colnames(DT_limma))]=NULL
-        
+
       } else{
         # Drop rows (protein groups) with missingness in samples
         DT_limma$missing_value= apply(DT_limma, 1, function(x) sum(x==0))
@@ -973,13 +973,13 @@ do_limma=function(Log2_DT, design_matrix,DE_dir,EA_dir,lfc_threshold,fdr_thresho
         DT_limma <- DT_limma[DT_limma$missing_value_c %in% c(0,n_control),]
         DT_limma <- DT_limma[DT_limma$missing_value != (n_treatment+n_control),]
         DT_limma[,grep('missing_value',colnames(DT_limma))]=NULL
-        
+
       }
-      
-      
-      
+
+
+
       #design
-      
+
       group_list <- factor(c(rep('treatment',n_treatment),
                              rep("control",n_control)),
                            levels = c('treatment',"control"))
@@ -987,12 +987,12 @@ do_limma=function(Log2_DT, design_matrix,DE_dir,EA_dir,lfc_threshold,fdr_thresho
       colnames(limma_design) <- levels(group_list)
       rownames(limma_design) <- colnames(DT_limma)
       cont.matrix <- makeContrasts(contrasts = paste0(unique(group_list),collapse = "-"),levels = limma_design)
-      
+
       #limma
       fit <- lmFit(DT_limma, limma_design)
       fit2 <- contrasts.fit(fit, cont.matrix)
       fit2 <- eBayes(fit2, trend=TRUE)
-      
+
       result_limma <- topTable(fit2, coef=1,n=Inf)
       result_limma=merge(Log2_DT[,c(name,treatment_samples, control_samples)],result_limma,by.x='Protein_Group',by.y=0)
       ezwrite(result_limma[order(result_limma$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
@@ -1000,8 +1000,8 @@ do_limma=function(Log2_DT, design_matrix,DE_dir,EA_dir,lfc_threshold,fdr_thresho
                    out_dir = DE_dir,
                    output_filename = paste0(treatment, '_vs_', control, '_limma'),
                    label_col = 'Genes',
-                   lfc_threshold =opt$lfc_threshold, 
-                   fdr_threshold = opt$fdr_threshold, 
+                   lfc_threshold =opt$lfc_threshold,
+                   fdr_threshold = opt$fdr_threshold,
                    labelgene =  opt$labelgene)
       enrich_pathway(DT.original = result_limma,
                      treatment = treatment,
@@ -1010,7 +1010,7 @@ do_limma=function(Log2_DT, design_matrix,DE_dir,EA_dir,lfc_threshold,fdr_thresho
                      lfc_threshold = lfc_threshold,
                      fdr_threshold = fdr_threshold,
                      enrich_pvalue = enrich_pvalue)
-    
+
   }
   }
 }
@@ -1025,7 +1025,7 @@ plot_heatmap <- function(DT) {
     mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
     # Filter rows where the sum of numeric values is greater than 0
     filter(rowSums(.) > 0)
-  
+
   sample_anno <- data.frame(condition = as.factor(sort(names(DT)[sapply(DT, function(x) all(is.numeric(x)))])))
   row.names(sample_anno) <- sample_anno$condition
   sample_anno$condition=gsub("_[0-9]*$","",sample_anno$condition)
@@ -1044,11 +1044,11 @@ plot_heatmap_subset <- function(DT_heatmap,gene) {
   row.names(sample_anno) <- sample_anno$condition
   sample_anno$condition=gsub("_[0-9]*$","",sample_anno$condition)
   DT_heatmap[is.na(DT_heatmap)]=0
-  
+
   subset_DT=data.frame(DT_heatmap[DT_heatmap$Genes %in% gene$Gene ,])
   subset_DT=subset_DT[!duplicated(subset_DT$Genes),]
   rownames(subset_DT)=subset_DT$Genes
-  
+
   pheatmap(log2(subset_DT[,3:ncol(subset_DT)]+1),
            scale='column',
            show_rownames = T,
@@ -1057,35 +1057,35 @@ plot_heatmap_subset <- function(DT_heatmap,gene) {
            treeheight_row=0,
            border_color =NA,
            filename=paste0(opt$outdir,'/','heatmap_label_gene.pdf'))
-  
+
 }
 
 #PPI##########
 ##APMS ttest
 do_t_test_APMS <- function(DT, treatment_samples, control_samples) {
-  
+
   DT_ttest <- DT
   n_treatment <- length(treatment_samples)
   n_control <- length(control_samples)
-  
+
   # Retain first three columns plus all treatment and control columns
   DT_ttest <- DT_ttest[,c(colnames(DT_ttest)[1:2], treatment_samples, control_samples), with=F]
-  
+
   # Convert NA to 0
   DT_ttest[is.na(DT_ttest)] <- 0
-  
+
   # Drop rows (protein groups) with > 50% missingness in samples
   DT_ttest[,'missing_value':= apply(.SD, 1, function(x) sum(x==0)), .SDcols=c(control_samples,treatment_samples) ]
   DT_ttest <- DT_ttest[missing_value <= (n_treatment+n_control)/2]
   DT_ttest[, 'missing_value' := NULL]
-  
+
   # Perform t-test  on treatment and control columns
   t_test <- apply(DT_ttest[,-c(1:2)], 1, function(x){
     a =factor(c(rep('treatment',n_treatment),
                 rep("control",n_control)),
               levels = c('treatment',"control"))
     fvalue=var.test(x~a)
-    if (!is.na(fvalue$p.value)){ 
+    if (!is.na(fvalue$p.value)){
       if (fvalue$p.value > 0.05){
         result <- t.test(x~a, var.equal = T)
       }else{
@@ -1099,8 +1099,8 @@ do_t_test_APMS <- function(DT, treatment_samples, control_samples) {
                       'control_estimate'=control_estimate)
     )
   })
-  
-  
+
+
   t_test <- rbindlist(t_test)
   t_test <- cbind(DT_ttest[,c(1:2)], t_test)   # add back protein group / gene info cols
   t_test[, logFC := log2(treatment_estimate / (control_estimate+1))]
@@ -1183,16 +1183,16 @@ plot_PPI_ven <- function(protein,t_test,lfc_threshold, fdr_threshold, output_dir
   vd=euler(ven)
   pdf(file=paste0(output_dir, output_filename))
   par(mar = c(2, 5, 5, 2))
-  print(plot(vd, 
+  print(plot(vd,
        factor_names = TRUE, labels=list(font=2, cex=1.2),
        counts = TRUE,
        key=TRUE,
        fills = list(fill = c("#fbb4ae", "#b3cde3", "#ccebc5")),
-       cex=1, 
+       cex=1,
        edges = FALSE,
        quantities = list(type = c("counts"))))
   dev.off()
-  
+
 }
 
 #mhcflurry########
@@ -1221,7 +1221,7 @@ runing_mhcflurry <- function(sample) {
   command <- paste0("mhcflurry-predict ",MHC_dir,sample, '_allele_peptide.csv'," --out " ,MHC_dir,sample,"_mhc_predictions.csv")
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_predictions.csv", '\n'))
   system(command)
-  
+
 }
 
 plot_mhc_affinity <- function(sample) {
@@ -1231,7 +1231,7 @@ plot_mhc_affinity <- function(sample) {
                                       & sample_prediction$mhcflurry_affinity_percentile<2,]
   sample_prediction=sample_prediction[order(sample_prediction$mhcflurry_affinity),]
   sample_prediction$rank=1:nrow(sample_prediction)
- 
+
   g <- ggplot(sample_prediction, aes(x=-log10(mhcflurry_affinity), y=-log2(mhcflurry_affinity_percentile+1))) +
     geom_point(aes(color = allele))  +
     theme_classic()+
@@ -1245,8 +1245,8 @@ plot_mhc_affinity <- function(sample) {
     ylab('-Log2(MHC Affinity Percentile)')
   ggsave(g, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele.pdf"),width = 6,height = 5)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele.pdf", '\n'))
-  
-  
+
+
   p <- ggplot(sample_prediction, aes(y=-log2(mhcflurry_affinity), x=rank)) +
     geom_point(aes(color = allele))  +
     theme_classic()+
@@ -1260,8 +1260,8 @@ plot_mhc_affinity <- function(sample) {
     ylab('-Log2(MHC Affinity)')
   ggsave(p, filename=paste0(MHC_dir,sample,"_mhc_affinity_rank.pdf"),width = 5,height = 5)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_rank.pdf", '\n'))
-  
-  
+
+
   label_text=data.frame()
   for (hla in unique(sample_prediction$allele)) {
     tmp=sample_prediction[sample_prediction$allele == hla,]
@@ -1269,7 +1269,7 @@ plot_mhc_affinity <- function(sample) {
     label_text=rbind(label_text,tmp)
   }
   f <- ggplot(sample_prediction, aes(x=-log10(mhcflurry_affinity), y=-log2(mhcflurry_affinity_percentile+1))) +
-    geom_point(aes(color = allele))  + 
+    geom_point(aes(color = allele))  +
     facet_wrap(~ allele, ncol=2,scales="free_y")+
     theme_classic()+
     geom_label_repel(
@@ -1279,10 +1279,10 @@ plot_mhc_affinity <- function(sample) {
     xlab('-Log10(MHC Affinity)') +
     ylab('-Log2(MHC Affinity Percentile)')+
     theme(legend.position="top")
-  
+
   ggsave(f, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele_separated.pdf"),width = 6,height = 8)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele_separated.pdf", '\n'))
-  
+
   f <- ggplot(sample_prediction, aes(x=allele, y=log2(mhcflurry_affinity))) +
     geom_dotplot(binaxis='y', stackdir='center',binwidth = 1/50,color='#E69F00',fill="#E69F00")+
     theme_classic()+
@@ -1290,8 +1290,8 @@ plot_mhc_affinity <- function(sample) {
     labs(fill = "",x="HLA alle",y='Log2(mhcflurry_affinity)')
   ggsave(f, filename=paste0(MHC_dir,sample,"_mhc_affinity_allele_dotplot.pdf"),width = 5,height = 5)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_allele_dotplot.pdf", '\n'))
-  
-  
+
+
   number=sample_prediction[, .N, by=allele]
   p=ggplot(number, aes(x=allele, y=N)) +
     geom_bar(stat="identity", fill="steelblue")+
@@ -1300,8 +1300,8 @@ plot_mhc_affinity <- function(sample) {
     scale_x_discrete(guide = guide_axis(angle = 90))
   ggsave(p, filename=paste0(MHC_dir,sample,"_mhc_affinity_peptide_count.pdf"),width = 5,height = 5)
   cat(paste0('   -> ', MHC_dir,sample,"_mhc_affinity_peptide_count.pdf", '\n'))
-  
-  
+
+
 }
 
 #pSILAC functions#################################
@@ -1334,7 +1334,7 @@ psilac_standardize_format = function(DT) {
   extension_samplenames =  colnames(DT)[colnames(DT) %like% extensions]
   trimmed_samplenames = gsub(extensions, '', extension_samplenames)
   setnames(DT, extension_samplenames, trimmed_samplenames)
-  # trim leading [N] 
+  # trim leading [N]
   colnames_out = gsub(pattern="\\[.*\\] ", replacement='', x=colnames(DT))
   setnames(DT, colnames_out)
   DT=data.table(DT)
@@ -1349,9 +1349,9 @@ plot_silac_pg_counts = function(DT.long, output_dir,intensity_cutoff,name,height
     summarise(counts = n_distinct(Protein_Group)) %>%  # Count unique Protein_Group
     mutate(Channel = gsub('.*Channel', 'Channel', Sample)) %>%   # Apply gsub using mutate
     mutate(Condition = gsub('[0-9]*\\.Channel', 'Channel', Sample))
-  
+
   ezwrite(pg_count, output_dir, paste0(name,'pg_count_over_',intensity_cutoff,'.tsv'))
-  
+
   p=ggplot(pg_count, aes(x=Sample, y=counts,fill=Channel)) +
     geom_bar(stat="identity")+
     theme_classic()+
@@ -1359,21 +1359,21 @@ plot_silac_pg_counts = function(DT.long, output_dir,intensity_cutoff,name,height
     scale_x_discrete(guide = guide_axis(angle = 90))
   ggsave(plot = p,filename = paste0(output_dir,name, 'pg_count_over_',intensity_cutoff,'.pdf'),height=height,width = width)
   cat(paste0('   -> ', output_dir,name, 'pg_count_over_',intensity_cutoff,'.pdf', '\n'))
-  
+
   pg_summary_data <- pg_count %>%
     group_by(Condition) %>%
     summarize(mean = mean(counts), sd = sd(counts)) %>%
     mutate(Channel = gsub('.*Channel', 'Channel', Condition)) %>%
     mutate(Sample = gsub('_Channel.*', '', Condition)) %>%
     arrange(Channel)  # Ascending order
-  
+
   p=ggplot(pg_summary_data, aes(x=as.factor(Sample), y=mean,fill=Channel)) +
     geom_bar(stat="identity",position=position_dodge())+
     theme_classic()+
     geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
                   position=position_dodge(.9))+
     labs(fill = "",x="",y='Number of Protein Group')+
-    scale_x_discrete(guide = guide_axis(angle = 90))+ 
+    scale_x_discrete(guide = guide_axis(angle = 90))+
     facet_grid(.~ Channel)
   ggsave(plot = p,filename = paste0(output_dir,'/',name,'pg_count_sd_over_',intensity_cutoff,'.pdf'),height=height,width = width)
   cat(paste0('   -> ', output_dir, '/',name,'pg_count_sd_over_',intensity_cutoff,'.pdf', '\n'))
@@ -1389,10 +1389,10 @@ plot_silac_pep_counts = function(DT.long, output_dir,intensity_cutoff,name,heigh
     group_by(Sample) %>%  # Group by the Sample column
     summarise(counts = n_distinct(Peptide_Sequence)) %>%  # Count unique Peptide_Sequence
     mutate(Channel = gsub('.*Channel', 'Channel', Sample))%>%   # Apply gsub using mutate
-    mutate(Condition = gsub('[0-9]*\\.Channel', 'Channel', Sample)) 
-  
+    mutate(Condition = gsub('[0-9]*\\.Channel', 'Channel', Sample))
+
   ezwrite(pep_count, output_dir, paste0(name,'pep_count_over_',intensity_cutoff,'.tsv'))
-  
+
   p=ggplot(pep_count, aes(x=Sample, y=counts,fill=Channel)) +
     geom_bar(stat="identity")+
     theme_classic()+
@@ -1400,21 +1400,21 @@ plot_silac_pep_counts = function(DT.long, output_dir,intensity_cutoff,name,heigh
     scale_x_discrete(guide = guide_axis(angle = 90))
   ggsave(plot = p,filename = paste0(output_dir, name,'pep_count_over_',intensity_cutoff,'.pdf'),height=height,width = width)
   cat(paste0('   -> ', output_dir, name,'pep_count_over_',intensity_cutoff,'.pdf', '\n'))
-  
+
   pep_summary_data <- pep_count %>%
     group_by(Condition) %>%
     summarize(mean = mean(counts), sd = sd(counts)) %>%
     mutate(Channel = gsub('.*Channel', 'Channel', Condition)) %>%
     mutate(Sample = gsub('_Channel.*', '', Condition)) %>%
     arrange(Channel)  # Ascending order
-  
+
   p=ggplot(pep_summary_data, aes(x=as.factor(Sample), y=mean,fill=Channel)) +
     geom_bar(stat="identity",position=position_dodge())+
     theme_classic()+
     geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
                   position=position_dodge(.9))+
     labs(fill = "",x="",y='Number of Peptide')+
-    scale_x_discrete(guide = guide_axis(angle = 90))+ 
+    scale_x_discrete(guide = guide_axis(angle = 90))+
     facet_grid(.~ Channel)
   ggsave(plot = p,filename = paste0(output_dir,'/',name,'pep_count_sd_over_',intensity_cutoff,'.pdf'),height=5,width = 4)
   cat(paste0('   -> ', output_dir, '/',name,'pep_count_sd_over_',intensity_cutoff,'.pdf', '\n'))
@@ -1426,21 +1426,21 @@ plot_silac_pg_intensity = function(DT.long, output_dir,height,width) {
   DT.long$Chanel=gsub('.*Channel','Channel',DT.long$Sample)
   DT.long$Condition=gsub('.Channel.*','',DT.long$Sample)
   DT.long$Sample=gsub('_[0-9]+$','',DT.long$Condition)
-  p=ggplot(DT.long, aes(y=Chanel, x=log10(Intensity),fill=Chanel)) + 
-    geom_density_ridges()+ 
+  p=ggplot(DT.long, aes(y=Chanel, x=log10(Intensity),fill=Chanel)) +
+    geom_density_ridges()+
     facet_wrap(. ~ Sample,ncol = 3)+
     theme_classic()+
     theme(axis.text.y = element_blank())
   ggsave(plot = p,filename = paste0(output_dir, 'silac_pg_intensity','_sample.pdf'),width = width,height =height)
   cat(paste0('   -> ', output_dir, 'silac_pg_intensity','_sample.pdf', '\n'))
-  p=ggplot(DT.long, aes(y=Condition, x=log10(Intensity),fill=Condition)) + 
-    geom_density_ridges()+ 
+  p=ggplot(DT.long, aes(y=Condition, x=log10(Intensity),fill=Condition)) +
+    geom_density_ridges()+
     facet_wrap(. ~ Chanel)+
     theme_classic()
   ggsave(plot = p,filename = paste0(output_dir, 'silac_pg_intensity','_chanel.pdf'),width = width,height =height)
   cat(paste0('   -> ', output_dir, 'silac_pg_intensity','_chanel.pdf', '\n'))
-  
-  p=ggplot(DT.long, aes(x=Condition, y=log10(Intensity))) + 
+
+  p=ggplot(DT.long, aes(x=Condition, y=log10(Intensity))) +
     geom_boxplot(outlier.shape = NA, fill="#67a9cf") +
     theme_classic() +
     labs(fill = "",x="",y='Log10 Protein Intensity') +
@@ -1450,29 +1450,29 @@ plot_silac_pg_intensity = function(DT.long, output_dir,height,width) {
     geom_hline(color='#ef8a62', linetype='dashed',  aes(yintercept=quantile(log10(DT.long$Intensity), 0.50)))
   ggsave(plot = p,filename = paste0(output_dir, 'silac_pg_intensity','_separated.pdf'),width = height,height =width)
   cat(paste0('   -> ', output_dir, 'silac_pg_intensity','_separated.pdf', '\n'))
-  
-  
+
+
 }
 
 plot_silac_pep_intensity = function(DT.long, output_dir,name,height,width) {
   DT.long$Chanel=gsub('.*Channel','Channel',DT.long$Sample)
   DT.long$Condition=gsub('.Channel.*','',DT.long$Sample)
   DT.long$Sample=gsub('_[0-9]+$','',DT.long$Condition)
-  p=ggplot(DT.long, aes(y=Chanel, x=log10(Intensity),fill=Chanel)) + 
-    geom_density_ridges()+ 
+  p=ggplot(DT.long, aes(y=Chanel, x=log10(Intensity),fill=Chanel)) +
+    geom_density_ridges()+
     facet_wrap(. ~ Sample,ncol = 3)+
     theme_classic()+
     theme(axis.text.y = element_blank())
   ggsave(plot = p,filename = paste0(output_dir,name, 'pep_intensity_sample.pdf'),width = width,height =height)
   cat(paste0('   -> ', output_dir,name, 'pep_intensity_sample.pdf', '\n'))
-  p=ggplot(DT.long, aes(y=Sample, x=log10(Intensity),fill=Sample)) + 
-    geom_density_ridges()+ 
+  p=ggplot(DT.long, aes(y=Sample, x=log10(Intensity),fill=Sample)) +
+    geom_density_ridges()+
     facet_wrap(. ~ Chanel)+
     theme_classic()
   ggsave(plot = p,filename = paste0(output_dir,name, 'pep_intensity_chanel.pdf'),width = width,height =height)
   cat(paste0('   -> ', output_dir, name,'pep_intensity_chanel.pdf', '\n'))
-  p=ggplot(DT.long, aes(y=Condition, x=log10(Intensity),fill=Sample)) + 
-    geom_density_ridges()+ 
+  p=ggplot(DT.long, aes(y=Condition, x=log10(Intensity),fill=Sample)) +
+    geom_density_ridges()+
     facet_wrap(. ~ Chanel)+
     theme_classic()+ theme(legend.position="none")
   ggsave(plot = p,filename = paste0(output_dir,name, 'pep_intensity_separated.pdf'),width = width,height =height)
@@ -1510,7 +1510,7 @@ psilac_umap <- function(DT, output_dir, output_filename) {
   umap <- get_umap(DT,neighbors = 15)
   umap$Channel=gsub('.*Channel','Channel', umap$Sample)
   umap$Condition = gsub('_[0-9]*\\.Channel.*', '', umap$Sample)
-  
+
   #write umap results
   ezwrite(umap, output_dir, paste0(output_filename,'.tsv'))
   #plot umap results
@@ -1523,7 +1523,7 @@ psilac_umap <- function(DT, output_dir, output_filename) {
     geom_point(size=4) +
     theme_classic() +
     guides(color = guide_legend(ncol =  ncol))
-  
+
   cat(paste0('   -> ', output_dir, output_filename,'.pdf', '\n'))
   ggsave(g, filename=paste0(output_dir, output_filename,'.pdf'), height = 6,width = 8)
 }
@@ -1645,7 +1645,7 @@ phospho_standardize_format = function(DT) {
   extension_samplenames =  colnames(DT)[colnames(DT) %like% extensions]
   trimmed_samplenames = gsub(extensions, '', extension_samplenames)
   setnames(DT, extension_samplenames, trimmed_samplenames)
-  # trim leading [N] 
+  # trim leading [N]
   colnames_out = gsub(pattern="\\[.*\\] ", replacement='', x=colnames(DT))
   setnames(DT, colnames_out)
   return(DT[])
@@ -1707,11 +1707,11 @@ plot_phospho_site_counts = function(DT_phospho_long, output_dir,height,width) {
 plot_phospho_site_intensity = function(DT_phospho_long, output_dir) {
   n_samples <- length(unique(DT_phospho_long$Sample))
   DT_phospho_long$Condition=gsub('_[0-9]+$','',DT_phospho_long$Sample)
-  p=ggplot(DT_phospho_long, aes(y=Sample, x=log10(Intensity),fill=Condition)) + 
+  p=ggplot(DT_phospho_long, aes(y=Sample, x=log10(Intensity),fill=Condition)) +
     geom_density_ridges()+
     theme_classic()+
     theme(axis.text.y = element_blank())
-  g <- ggplot(DT_phospho_long, aes(x=Sample, y=log10(Intensity),fill=Condition)) + 
+  g <- ggplot(DT_phospho_long, aes(x=Sample, y=log10(Intensity),fill=Condition)) +
     geom_boxplot(outlier.shape = NA) +
     theme_classic() +
     labs(fill = "",x="",y='Log10 Peptide Intensity') +
@@ -1749,7 +1749,7 @@ phospho_ttest = function(DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
       #ttest table
       # Initial data transformation
       DT_ttest <- DT[,c("PTM", treatment_samples, control_samples)]
-      
+
       # Convert NA to 0 and add missing value calculations
       DT_ttest <- DT_ttest %>%
         # Convert NA to 0
@@ -1778,7 +1778,7 @@ phospho_ttest = function(DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
                     rep("control",n_control)),
                   levels = c('treatment',"control"))
         fvalue=var.test(x~a)
-        if (!is.na(fvalue$p.value)){ 
+        if (!is.na(fvalue$p.value)){
           if (fvalue$p.value > 0.05){
             result <- t.test(x~a, var.equal = T)
           }else{
@@ -1793,7 +1793,7 @@ phospho_ttest = function(DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
         )
       })
       t_test <- rbindlist(t_test)
-      result_ttest <- cbind(DT_ttest, t_test) 
+      result_ttest <- cbind(DT_ttest, t_test)
       # Merge DT and result_ttest based on PTM column
       result_ttest <- merge(DT[, name, drop=FALSE], result_ttest, by.x='PTM', by.y='row.names')
       # Calculate logFC and adjust P-values using dplyr
@@ -1801,7 +1801,7 @@ phospho_ttest = function(DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
         mutate(logFC = log2((treatment_estimate+1) / (control_estimate + 1)),
                adj.P.Val = p.adjust(P.Value, method='BH'))
       ezwrite(result_ttest[order(result_ttest$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
-      plot_volcano(DT.original =result_ttest , 
+      plot_volcano(DT.original =result_ttest ,
                    lfc_threshold = opt$lfc_threshold,
                    fdr_threshold = opt$fdr_threshold,
                    out_dir = DE_dir,label_col = 'PTM',
@@ -1840,7 +1840,7 @@ phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
       control_samples=grep(control,colnames(Log2_DT),value = T)
       n_treatment <- length(treatment_samples)
       n_control <- length(control_samples)
-      
+
       #DT_limma
       DT_limma <- Log2_DT[,c(treatment_samples, control_samples)]
       DT_limma <- DT_limma %>%
@@ -1859,7 +1859,7 @@ phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
           missing_value != (n_treatment + n_control)
         ) %>%
         select(-missing_value, -missing_value_c, -missing_value_t)
-      
+
       #design
       group_list <- factor(c(rep('treatment',n_treatment),
                              rep("control",n_control)),
@@ -1872,11 +1872,11 @@ phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
       fit <- lmFit(DT_limma, limma_design)
       fit2 <- contrasts.fit(fit, cont.matrix)
       fit2 <- eBayes(fit2, trend=TRUE)
-      
+
       result_limma <- topTable(fit2, coef=1,n=Inf)
       result_limma=merge(Log2_DT[,c(name,treatment_samples, control_samples)],result_limma,by.x='PTM',by.y=0)
       ezwrite(result_limma[order(result_limma$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '_limma.tsv'))
-      plot_volcano(DT.original =result_limma , 
+      plot_volcano(DT.original =result_limma ,
                    lfc_threshold = opt$lfc_threshold,
                    fdr_threshold = opt$fdr_threshold,
                    out_dir = DE_dir,label_col = 'PTM',
@@ -1901,7 +1901,7 @@ phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
 }
 
 
-##PTM Enrichment Analysis 
+##PTM Enrichment Analysis
 PTM_EA = function(DT.original, treatment, control, outdir, lfc_threshold, fdr_threshold, enrich_pvalue){
   PTM_db=read.gmt('src/ptm.sig.db.all.uniprot.human.v2.0.0.gmt')
   PTM_db$gene=gsub('-p.*','',PTM_db$gene)
@@ -1917,17 +1917,17 @@ PTM_EA = function(DT.original, treatment, control, outdir, lfc_threshold, fdr_th
     mutate(Group = ifelse(adj.P.Val >= fdr_threshold, 'Others', Group))%>%
     data.frame()
   DT$pho_site=paste0(DT$Protein_Group,';',gsub('\\(|\\)','',DT$PTM_Location))
-  
+
   all_PTM=DT$logFC
   names(all_PTM)=DT$pho_site
   all_PTM <- sort(all_PTM, decreasing = TRUE)
-  
-  ## up and down regulated PTMs 
+
+  ## up and down regulated PTMs
   up_PTM=DT[which(DT$logFC>=lfc_threshold&DT$adj.P.Val<=fdr_threshold),]
   down_PTM=DT[which(DT$logFC<=(-lfc_threshold)&DT$adj.P.Val<=fdr_threshold),]
   if (nrow(up_PTM)>0){
     print('Processing up_PTM enrichment analysis')
-    em <- enricher(up_PTM$pho_site, 
+    em <- enricher(up_PTM$pho_site,
                    TERM2GENE=PTM_db,
                    qvalueCutoff =enrich_pvalue,
                    universe = names(all_PTM) )
@@ -1938,11 +1938,11 @@ PTM_EA = function(DT.original, treatment, control, outdir, lfc_threshold, fdr_th
       p=dotplot(em, showCategory=10)
       ggsave(paste0(dir,'/','up_enrich_dotplot.pdf'),p,width = 10,height = 10)
     }else{
-      print("No enriched pathways found in up PTM Enrichment Analysis analysis")} 
+      print("No enriched pathways found in up PTM Enrichment Analysis analysis")}
   }
   if (nrow(down_PTM)>0){
     print('Processing down_PTM enrichment analysis')
-    em <- enricher(down_PTM$pho_site, 
+    em <- enricher(down_PTM$pho_site,
                    TERM2GENE=PTM_db,
                    qvalueCutoff =enrich_pvalue,
                    universe = names(all_PTM) )
@@ -1953,18 +1953,18 @@ PTM_EA = function(DT.original, treatment, control, outdir, lfc_threshold, fdr_th
       p=dotplot(em, showCategory=10)
       ggsave(paste0(dir,'/','down_enrich_dotplot.pdf'),p,width = 10,height = 10)
     }else{
-      print("No enriched pathways found in down PTM Enrichment Analysis analysis")} 
-      
+      print("No enriched pathways found in down PTM Enrichment Analysis analysis")}
+
   }
   print('Processing Gene Set Enrichment Analysis')
   if (nrow(down_PTM)+nrow(up_PTM) >0){
-    gse <- GSEA(geneList = all_PTM, 
+    gse <- GSEA(geneList = all_PTM,
                 TERM2GENE = PTM_db,
                 pvalueCutoff = enrich_pvalue)
     gse_res=gse@result
     if (nrow(gse_res) > 0) {
       p=dotplot(gse, showCategory=10, split=".sign") + facet_grid(.~.sign)
-      ggsave(paste0(dir,'/','gse_dotplot.pdf'),p,width = 10,height = 10) 
+      ggsave(paste0(dir,'/','gse_dotplot.pdf'),p,width = 10,height = 10)
       cat(paste0('   -> ', dir,'/','gse_dotplot.pdf', '\n'))
       x2 <- pairwise_termsim(gse)
       p=emapplot(x2)
@@ -1975,7 +1975,7 @@ PTM_EA = function(DT.original, treatment, control, outdir, lfc_threshold, fdr_th
       print("No enriched pathways found in the Gene Set Enrichment Analysis analysis")}
   }
 }
-      
+
 
 
 ##ksea
@@ -2009,23 +2009,23 @@ ksea=function(dir,outdir,substrates_cutoff,ksea_fdr){
                             NetworKIN.cutoff = 5)
     ezwrite(KSEA_Scores,KS_outdir,'KSEA_Kinase_Scores.tsv')
     drawdata <- KSEA_Scores %>%
-      filter(m >= substrates_cutoff) %>%  # Filter rows where m is less than 5,m.cutoff a numeric value between 0 and infinity indicating the min. # of substrates 
+      filter(m >= substrates_cutoff) %>%  # Filter rows where m is less than 5,m.cutoff a numeric value between 0 and infinity indicating the min. # of substrates
       arrange(z.score) %>%  # Arrange by z.score in ascending order
       slice(c(1:10, (n() - 9):n())) %>%  # Select the smallest top 10 negative and largest top 10 positive z.scores
       mutate(Group = 'Others',
              Group = if_else(z.score > 0, 'UP', Group),
              Group = if_else(z.score < 0, 'DOWN', Group),
              Group = if_else(p.value >= ksea_fdr, 'Others', Group))
-    
-    
+
+
     p=ggplot(drawdata,aes(y=reorder(Kinase.Gene,z.score),x=z.score,fill=Group))+
-      scale_fill_manual(breaks = c("DOWN", "Others", "UP"), 
+      scale_fill_manual(breaks = c("DOWN", "Others", "UP"),
                         values = c("#67a9cf", "#969696", "#ef8a62"),
                         labels = c("Neg_Significant", "Not", "Pos_Significant"))+
       theme_classic()+
       geom_bar(stat='identity',position = 'dodge')+
       ylab('Kinase Gene')+
-      xlab('Enrichment Score')+ 
+      xlab('Enrichment Score')+
       theme(legend.position="top")
     ggsave(filename = paste0(KS_outdir,'/enrich_plot_pvalue.pdf'),plot = p,width = 8, height = 6)
     p=ggplot(drawdata,aes(x=reorder(Kinase.Gene,Enrichment),y=Enrichment,fill=z.score))+
@@ -2044,8 +2044,8 @@ ksea=function(dir,outdir,substrates_cutoff,ksea_fdr){
   setwd(paste0(outdir))
   sample.labels=c(gsub('i.*_v','v',files))
   sample.labels=gsub('.tsv','',sample.labels)
-  KSEA.Heatmap(all_KSEA_Scores, 
-               sample.labels=sample.labels, 
+  KSEA.Heatmap(all_KSEA_Scores,
+               sample.labels=sample.labels,
                stats = 'p.value', #可选p.value或是FDR
                m.cutoff=5,
                p.cutoff=0.05,
@@ -2063,23 +2063,23 @@ soma_all_output=function(DT,output_dir){
   DT_dat = DT_dat[, grep('seq\\.', colnames(DT_dat))] %>%
     t() %>%
     as.data.frame()
-  
+
   Buffer_mean <- DT %>%
     filter(SampleType == "Buffer") %>%
     select(matches("seq\\.", ignore.case = TRUE)) %>%
     summarise(across(everything(), ~ mean(.x, na.rm = TRUE))) %>%
     t() %>%
-    as.data.frame()%>% 
+    as.data.frame()%>%
     {colnames(.) <- 'Buffer'; .}
-  
+
   Calibrator_mean <- DT %>%
     filter(SampleType == "Calibrator") %>%
     select(matches("seq\\.", ignore.case = TRUE)) %>%
     summarise(across(everything(), ~ mean(.x, na.rm = TRUE))) %>%
     t() %>%
-    as.data.frame()%>% 
+    as.data.frame()%>%
     {colnames(.) <- 'Calibrator'; .}
-  
+
   DT_combined <- cbind(Buffer_mean, Calibrator_mean, DT_dat)
   DT_out=merge(anno[,grep('AptName|UniProt|EntrezGeneSymbol|TargetFullName|Organism|Type',colnames(anno))], DT_combined,by.x='AptName',by.y=0)
   DT_out=DT_out%>%
@@ -2125,10 +2125,10 @@ Buffer_filter=function(DT,output_dir){
 ##soma pg count with plot sd
 soma_plot_counts = function(counts, output_dir) {
   counts <- counts %>%
-    filter(!is.na(SampleGroup)) %>% 
+    filter(!is.na(SampleGroup)) %>%
     mutate(Sample = factor(Sample, levels = c(
-      Sample[SampleGroup == "Buffer"], 
-      Sample[SampleGroup == "Calibrator"], 
+      Sample[SampleGroup == "Buffer"],
+      Sample[SampleGroup == "Calibrator"],
       Sample[!SampleGroup %in% c("Buffer", "Calibrator")][order(SampleGroup[!SampleGroup %in% c("Buffer", "Calibrator")])]
     )))
   p=ggplot(counts, aes(x=as.factor(Sample), y=N,fill=SampleGroup)) +
@@ -2157,40 +2157,35 @@ soma_plot_counts = function(counts, output_dir) {
       theme_classic() +
       labs(fill = "", x = "", y = "Number of Protein Group") +
       scale_x_discrete(guide = guide_axis(angle = 90))
-    ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer_with_flag','.pdf'),height=5,width = 6)
-    cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer_with_flag','.pdf', '\n'))
-  } 
-}
+    ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer.pdf'),height=4,width = 15)
+    cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer.pdf', '\n'))
+  }else{
+    counts <- counts %>%
+      merge(condition_file, by.x = 'Sample', by.y = 'SampleId') %>%
+      #filter(SampleType == "Sample") %>%   # remove control samples
+      filter(!is.na(SampleGroup))
+    p=ggplot(counts, aes(x=as.factor(Sample), y=N,fill=SampleGroup)) +
+      geom_bar(stat="identity", position=position_dodge())+
+      theme_classic()+
+      labs(fill = "",x="",y='Number of Protein Group')+
+      scale_x_discrete(guide = guide_axis(angle = 90))
+    ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer.pdf'),height=4,width = 15)
+    cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer.pdf', '\n'))
+    #sd
+    summary_data <- counts %>%
+      group_by(SampleGroup) %>%
+      summarize(mean = mean(N), sd = sd(N)) %>%
+      arrange(SampleGroup)%>%
+      na.omit()
+    p=ggplot(summary_data, aes(x=as.factor(SampleGroup), y=mean,fill=SampleGroup)) +
+      geom_bar(stat="identity", position=position_dodge())+
+      theme_classic()+
+      geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                    position=position_dodge(.9))+
+      labs(fill = "",x="",y='Number of Protein Group')
+    ggsave(plot = p,filename = paste0(output_dir,'/','protein_group_counts_over_buffer_group_sd','.pdf'),height=5,width = 4)
+    cat(paste0('   -> ', output_dir, '/','protein_group_counts_over_buffer_group_sd','.pdf', '\n'))
 
-#plot_soma_pg_intensities
-plot_soma_pg_intensities =function(DT,condition_file, output_dir) {
-  condition_file=condition_file%>%
-    filter(!is.na(SampleGroup)) 
-  DT <- merge(DT, condition_file[,grep('SampleId|SampleGroup|RowCheck',colnames(condition_file))], 
-              by.x = 'Sample', by.y = 'SampleId',all=T)
-  DT$SampleGroup <- ifelse(is.na(DT$SampleGroup), DT$Sample, DT$SampleGroup)
-  
-  n_samples <- length(unique(DT$Sample))
-  g <- ggplot(DT, aes(x=Sample, y=log10(Intensity))) + 
-    geom_boxplot(outlier.shape = NA,fill='#67a9cf') +
-    theme_classic() +
-    labs(fill = "",x="",y='Log10 Protein Intensity') +
-    theme(axis.text.x = element_text( angle=90)) +
-    geom_boxplot(width=0.1) +
-    geom_hline(color='#ef8a62', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity), 0.50, na.rm = TRUE)))
-  
-  ggsave(plot = g,filename = paste0(output_dir, 'all_intensities.pdf'),width = 10,height =6)
-  cat(paste0('   -> ', output_dir, 'all_intensities.pdf', '\n'))
-  if ("FLAG" %in% DT$RowCheck) {
-    p=ggplot(DT, aes(x=Sample, y=log10(Intensity), fill = RowCheck)) + 
-      geom_boxplot(outlier.shape = NA) +
-      theme_classic() +
-      labs(fill = "",x="",y='Log10 Protein Intensity') +
-      theme(axis.text.x = element_text( angle=90)) +
-      geom_boxplot(width=0.1) +
-      geom_hline(color='#ef8a62', linetype='dashed',  aes(yintercept=quantile(log10(DT$Intensity), 0.50, na.rm = TRUE)))
-    ggsave(plot = p,filename = paste0(output_dir,'/','all_intensities_flag.pdf'),height=6,width = 10)
-    cat(paste0('   -> ', output_dir, '/','all_intensities_flag.pdf', '\n'))
   }
 }
 
@@ -2205,11 +2200,11 @@ miss_value_plot=function(DT,outdir){
   na_per_sample=sapply(DT, function(x) sum(is.na(x)))
   na_per_sample_df <- data.frame(sampleumn = names(na_per_sample), NA_Count = na_per_sample)
   ezwrite(na_per_sample_df,outdir,'na_per_sample.tsv')
-  
+
   # Plot NA distribution in sampleumns
   p=ggplot(na_per_sample_df, aes(x = NA_Count)) +
     geom_histogram(color="darkblue", fill="lightblue")+
-    theme_classic()+ 
+    theme_classic()+
     geom_vline(aes(xintercept=mean(NA_Count)),
                color="blue", linetype="dashed", size=1)+
     ggtitle("Distribution of NAs in samples")
@@ -2218,7 +2213,7 @@ miss_value_plot=function(DT,outdir){
   # Plot NA distribution in proteins
   p=ggplot(na_per_protein_df, aes(x = NA_Count)) +
     geom_histogram(color="darkblue", fill="lightblue")+
-    theme_classic()+ 
+    theme_classic()+
     geom_vline(aes(xintercept=mean(NA_Count)),
                color="darkblue", linetype="dashed", size=1)+
     ggtitle("Distribution of NAs in proteins")
@@ -2227,6 +2222,7 @@ miss_value_plot=function(DT,outdir){
 }
 
 ##soma pca plot
+<<<<<<< HEAD
 soma_plot_PCs <- function(adat,DT,condition_file, output_dir) {
   #pca all
   cluster_data <- adat %>%
@@ -2245,6 +2241,11 @@ soma_plot_PCs <- function(adat,DT,condition_file, output_dir) {
     theme_classic()
   ggsave(p,filename=paste0(output_dir, 'pca_all.pdf'), height = 4,width = 5)
   #pca sample
+=======
+soma_get_PCs=function(DT,condition_file,cluster_dir){
+  out <- list()
+  ##cluster data(na=0)
+>>>>>>> 1e7a12a (functions)
   cluster_data <- DT %>%
     select_if(is.numeric) %>%
     mutate(across(everything(), ~ log2(. )))
@@ -2255,8 +2256,8 @@ soma_plot_PCs <- function(adat,DT,condition_file, output_dir) {
   summary$percent=round(summary$percent*100, digits = 2)
   pca_df = as.data.frame(pca$x)[,1:5]
   condition_file=condition_file%>%
-    filter(!is.na(SampleGroup)) 
-  pca_df <- merge(pca_df, condition_file[,grep('SampleId|SampleGroup|RowCheck',colnames(condition_file))], 
+    filter(!is.na(SampleGroup))
+  pca_df <- merge(pca_df, condition_file[,grep('SampleId|SampleGroup|RowCheck',colnames(condition_file))],
                   by.x = 0, by.y = 'SampleId',all=T)
   ezwrite(pca_df, output_dir, 'PCA.tsv')
   ezwrite(summary, output_dir, 'PCA_summary.tsv')
@@ -2287,11 +2288,11 @@ soma_get_umap <- function(DT, condition_file) {
     mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
     # Filter rows where the sum of numeric values is greater than 0
     filter(rowSums(.) > 0)
-  
+
   # Apply log2 transformation
   log2_cluster_data <- cluster_data %>%
     mutate(across(everything(), ~ log2(. + 1)))
-  
+
   set.seed(100)
   DT.umap <- umap(t(log2_cluster_data))
   DT.out <- as.data.table(DT.umap$layout, keep.rownames=TRUE)
@@ -2309,12 +2310,12 @@ soma_plot_umap <- function(DT, output_dir, output_filename) {
   if (all(is.na(DT$SampleGroup))){
     g <- ggplot(DT, aes(x=UMAP1, y=UMAP2, color=SampleType)) +
       geom_point(size=4) +
-      theme_classic() 
-    
+      theme_classic()
+
   }else{
   g <- ggplot(DT, aes(x=UMAP1, y=UMAP2, color=SampleGroup)) +
     geom_point(size=4) +
-    theme_classic() 
+    theme_classic()
   }
   cat(paste0('   -> ', output_dir, output_filename, '\n'))
   ggsave(g, filename=paste0(output_dir, output_filename), height = 4,width = 5)
@@ -2345,10 +2346,10 @@ soma_test=function(DT.original, out_dir, output_filename ,lfc_threshold, fdr_thr
   # Label top 5 genes using the specified label column
   DT <- DT %>%
     mutate(labeltext = if_else(AptName %in% top5_gene$AptName, Genes, ""))
-  
+
   g <- ggplot(DT, aes(x = logFC, y = -log10(adj.P.Val))) +
     geom_point(aes(color = Group)) +
-    scale_color_manual(breaks = c("DOWN", "Others", "UP"), 
+    scale_color_manual(breaks = c("DOWN", "Others", "UP"),
                        values = c("#67a9cf", "#969696", "#ef8a62")) +
     theme_bw(base_size = 12) +
     theme(legend.position = "bottom") +
@@ -2358,11 +2359,11 @@ soma_test=function(DT.original, out_dir, output_filename ,lfc_threshold, fdr_thr
       size = 5,
       box.padding = unit(0.35, "lines"),
       point.padding = unit(0.3, "lines")) +
-    geom_hline(yintercept = -log10(fdr_threshold), linetype = "dashed") + 
-    geom_vline(xintercept = lfc_threshold, linetype = "dashed") + 
+    geom_hline(yintercept = -log10(fdr_threshold), linetype = "dashed") +
+    geom_vline(xintercept = lfc_threshold, linetype = "dashed") +
     geom_vline(xintercept = -lfc_threshold, linetype = "dashed") +
     theme_classic()
-  
+
   cat(paste0(out_dir, output_filename,'_vocanol.pdf'))
   ggsave(g, filename = paste0(out_dir, output_filename,'_vocanol.pdf'), width = 8, height = 8)
   cat(paste0('   -> ', out_dir, output_filename,'_vocanol.pdf', '\n'))
@@ -2392,10 +2393,10 @@ soma_plot_volcano=function(DT.original, out_dir, output_filename ,lfc_threshold,
   # Label top 5 genes using the specified label column
   DT <- DT %>%
     mutate(labeltext = if_else(AptName %in% top5_gene$AptName, Genes, ""))
-  
+
   g <- ggplot(DT, aes(x = logFC, y = -log10(adj.P.Val))) +
     geom_point(aes(color = Group)) +
-    scale_color_manual(breaks = c("DOWN", "Others", "UP"), 
+    scale_color_manual(breaks = c("DOWN", "Others", "UP"),
                        values = c("#67a9cf", "#969696", "#ef8a62")) +
     theme_bw(base_size = 12) +
     theme(legend.position = "bottom") +
@@ -2405,11 +2406,11 @@ soma_plot_volcano=function(DT.original, out_dir, output_filename ,lfc_threshold,
       size = 5,
       box.padding = unit(0.35, "lines"),
       point.padding = unit(0.3, "lines")) +
-    geom_hline(yintercept = -log10(fdr_threshold), linetype = "dashed") + 
-    geom_vline(xintercept = lfc_threshold, linetype = "dashed") + 
+    geom_hline(yintercept = -log10(fdr_threshold), linetype = "dashed") +
+    geom_vline(xintercept = lfc_threshold, linetype = "dashed") +
     geom_vline(xintercept = -lfc_threshold, linetype = "dashed") +
     theme_classic()
-  
+
   cat(paste0(out_dir, output_filename,'_vocanol.pdf'))
   ggsave(g, filename = paste0(out_dir, output_filename,'_vocanol.pdf'), width = 8, height = 8)
   cat(paste0('   -> ', out_dir, output_filename,'_vocanol.pdf', '\n'))
@@ -2417,7 +2418,7 @@ soma_plot_volcano=function(DT.original, out_dir, output_filename ,lfc_threshold,
 
 soma_plot_heatmap <- function(DT_heatmap,condition_file ){
   DT_heatmap=DT_heatmap %>%
-    select_if(is.numeric) 
+    select_if(is.numeric)
   if (all(is.na(condition$SampleGroup))) {
     pheatmap(log10(DT_heatmap),
              scale='column',
@@ -2428,7 +2429,7 @@ soma_plot_heatmap <- function(DT_heatmap,condition_file ){
              filename=paste0(opt$outdir,'/','heatmap_all.pdf'))
   }else{
     condition_file <- condition_file %>%
-      filter(!is.na(SampleGroup))   
+      filter(!is.na(SampleGroup))
     sample_anno=data.frame(condition = as.factor(condition_file$SampleGroup))
     row.names(sample_anno) <- condition_file$SampleId
     pheatmap(log10(DT_heatmap),
@@ -2444,7 +2445,7 @@ soma_plot_heatmap <- function(DT_heatmap,condition_file ){
 
 soma_plot_heatmap_subset <- function(DT_heatmap,condition_file,gene_subset ){
   condition_file <- condition_file %>%
-    filter(!is.na(SampleGroup))   
+    filter(!is.na(SampleGroup))
   sample_anno=data.frame(condition = as.factor(condition_file$SampleGroup))
   row.names(sample_anno) <- condition_file$SampleId
   gene_subset=fread(gene_subset)
@@ -2454,7 +2455,7 @@ soma_plot_heatmap_subset <- function(DT_heatmap,condition_file,gene_subset ){
   potential_names <- c("gene","genes", "Gene", "Genes", "GENE", "GENES")
   # Find matching columns
   columns_to_rename <- existing_names[existing_names %in% potential_names]
-  
+
   # Rename matching columns to 'gene'
   if (length(columns_to_rename) > 0) {
     gene_subset <- gene_subset %>%
@@ -2463,7 +2464,7 @@ soma_plot_heatmap_subset <- function(DT_heatmap,condition_file,gene_subset ){
   }
   DT_heatmap <- DT_heatmap %>%
     filter(Genes %in% gene_subset$gene) %>%
-    select_if(is.numeric) 
+    select_if(is.numeric)
   pheatmap(log10(DT_heatmap),
            scale='column',
            show_rownames = F,
@@ -2481,7 +2482,7 @@ soma_box_plot=function(soma_adat,treatment,control,out_dir,gene,t_test,levels,co
       filter(Genes %in% gene) %>%  # Filter by relevant genes
       group_by(Genes) %>%                          # Group by Genes
       slice_min(order_by = adj.P.Val, n = 1) %>%  # Select the row with the smallest adj_pvalue
-      ungroup()                                  # Ungroup to perform further operations  
+      ungroup()                                  # Ungroup to perform further operations
   }else{
     target_map <- t_test %>%
       group_by(Genes) %>%                             # Group by Genes
@@ -2489,13 +2490,13 @@ soma_box_plot=function(soma_adat,treatment,control,out_dir,gene,t_test,levels,co
       ungroup() %>%                                   # Ungroup to perform further operations
       slice_min(order_by = adj.P.Val, n = 20)         # Select the top 20 rows based on the smallest adj.P.Val
   }
-                               
+
   plot_tbl <- as.data.frame(soma_adat)  %>%            # plot non-center/scale data
     filter(SampleType == "Sample")  %>%    # rm control samples
     filter(!is.na(SampleGroup))  %>%  # rm NAs if present
     filter(SampleGroup %in% c(treatment,control)) %>%
     select(SampleGroup, all_of(target_map$AptName))%>%
-    mutate(across(where(is.numeric), log10))  %>%                 
+    mutate(across(where(is.numeric), log10))  %>%
     melt(id.vars = "SampleGroup", variable.name = "AptName", value.name = "RFU")%>%
     left_join(target_map, by = "AptName")
   library(ggpubr)
@@ -2514,10 +2515,10 @@ soma_box_plot=function(soma_adat,treatment,control,out_dir,gene,t_test,levels,co
           axis.title.x = element_text(size = 14),
           axis.title.y = element_text(size = 14),
           legend.position = "top") +
-    stat_compare_means(method = "t.test", label = "p.signif", 
-                       aes(label = ..p.signif..), 
+    stat_compare_means(method = "t.test", label = "p.signif",
+                       aes(label = ..p.signif..),
                        label.x.npc = "center", vjust = 1)
-  
+
   # Apply custom colors if provided
   if (!is.null(color)) {
     plot <- plot + scale_fill_manual(values = color)
@@ -2527,7 +2528,7 @@ soma_box_plot=function(soma_adat,treatment,control,out_dir,gene,t_test,levels,co
     ggsave(paste0(out_dir,treatment, '_vs_', control,"_soma_ttest_top_boxplot.pdf"),plot,width =10, height = 6 )
     cat(paste0('   -> ', out_dir,treatment, '_vs_', control,"_soma_ttest_top_boxplot.pdf", '\n'))
   }
-  
+
 }
 
 
@@ -2539,18 +2540,18 @@ soma_box_plot=function(soma_adat,treatment,control,out_dir,gene,t_test,levels,co
 #plot_intensities
 plot_olink_intensities =function(DT, output_dir) {
   n_samples <- length(unique(DT$SampleID))
-  g <- ggplot(DT, aes(x=SampleID, y=(NPX))) + 
+  g <- ggplot(DT, aes(x=SampleID, y=(NPX))) +
     geom_boxplot(outlier.shape = NA,fill='#67a9cf') +
     theme_classic() +
     labs(fill = "",x="",y='NPX') +
     theme(axis.text.x = element_text( angle=90)) +
     geom_boxplot(width=0.1) +
     geom_hline(color='#ef8a62', linetype='dashed',  aes(yintercept=quantile((DT$NPX), 0.50, na.rm = TRUE)))
-  
+
   ggsave(plot = g,filename = paste0(output_dir, 'all_intensities.pdf'),width = 10,height =6)
   cat(paste0('   -> ', output_dir, 'all_intensities.pdf', '\n'))
   if ("Warning" %in% DT$SampleQC) {
-    p=ggplot(DT, aes(x=SampleID, y=(NPX), fill = SampleQC)) + 
+    p=ggplot(DT, aes(x=SampleID, y=(NPX), fill = SampleQC)) +
       geom_boxplot(outlier.shape = NA) +
       theme_classic() +
       labs(fill = "",x="",y='NPX') +
@@ -2571,7 +2572,7 @@ data_fillter_nc=function(npx,output_dir){
     select(matches("OID", ignore.case = TRUE)) %>%
     summarise(across(everything(), ~ mean(.x, na.rm = TRUE))) %>%
     t() %>%
-    as.data.frame()%>% 
+    as.data.frame()%>%
     {colnames(.) <- 'NEGATIVE_CONTROL'; .}
   data_sample <- npx |>
     dplyr::filter(SampleType == "SAMPLE") |>
@@ -2648,7 +2649,7 @@ olink_plot_PCs <- function(DT,DT_all,condition_file, output_dir) {
   pca_df = as.data.frame(pca$x)[,1:5]
   rownames(pca_df)=DT$SampleID
   condition_file=condition_file%>%
-    filter(!is.na(Sample_Group)) 
+    filter(!is.na(Sample_Group))
   pca_df <- merge(pca_df, condition_file, by.x = 0, by.y = 'Sample_ID',all=T)
   ezwrite(pca_df, output_dir, 'PCA.tsv')
   ezwrite(summary, output_dir, 'PCA_summary.tsv')
@@ -2683,7 +2684,7 @@ olink_ttest =function(DT, treatment_samples, control_samples ){
                 rep("control",n_control)),
               levels = c('treatment',"control"))
     fvalue=var.test(x~a)
-    if (!is.na(fvalue$p.value)){ 
+    if (!is.na(fvalue$p.value)){
       if (fvalue$p.value > 0.05){
         result <- t.test(x~a, var.equal = T)
       }else{
@@ -2705,6 +2706,6 @@ olink_ttest =function(DT, treatment_samples, control_samples ){
     mutate(FC = (treatment_estimate) / (control_estimate),
            adj.P.Val = p.adjust(P.Value, method='BH'))
   ezwrite(result_ttest[order(result_ttest$adj.P.Val),], DE_dir, paste0(treatment, '_vs_', control, '.tsv'))
-  
-  
+
+
 }
