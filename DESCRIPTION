@@ -13,3 +13,25 @@ RoxygenNote: 7.3.2
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Imports:
+	ggplot2,
+	data.table,
+	corrplot,
+	umap,
+	magick,
+	ggdendro,
+	ecodist,
+	ggbeeswarm,
+	ggrepel,
+	ggthemes,
+	foreach,
+	reshape2,
+	clusterProfiler,
+	DOSE,
+	enrichplot,
+	pheatmap,
+	limma,
+	dplyr,
+	DescTools,
+	matrixStats
+	
