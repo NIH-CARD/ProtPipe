@@ -57,7 +57,7 @@ plot_pg_counts <- function(PD, by_condition = F) {
 #'
 #' @examples
 plot_pg_intensities <- function(PD) {
-  DT=getDataLong(PD)
+  DT <- getDataLong(PD)
   n_samples <- length(unique(DT$Sample))
   g <- ggplot2::ggplot(DT, ggplot2::aes(x=Sample, y=log10(Intensity))) +
     ggplot2::geom_boxplot(outlier.shape = NA, fill="#67a9cf") +
@@ -68,4 +68,55 @@ plot_pg_intensities <- function(PD) {
     ggplot2::geom_hline(color='#ef8a62', linetype='dashed',  ggplot2::aes(yintercept=quantile(log10(DT$Intensity), 0.50)))
 
   return(g)
+}
+
+#' Title
+#'
+#' @param PD
+#' @param method
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_spearman <- function(PD, method = 'spearman') {
+  DT <- getData(PD)
+  #### Pairwise correlations between sample columns
+  dt.samples <- DT[,-c(1:2)]     # Ignore info columns (subset to only intensity values)
+  dt.corrs <- cor(log2(as.matrix(na.omit(dt.samples))+1), method=method)
+
+  # Format correlations as 3 digits
+  dt.corrs <- data.table::data.table(reshape2::melt(dt.corrs, measure.vars=dt.corrs[,rn], value.name='Spearman'))
+  dt.corrs <- dt.corrs[! is.na('Spearman')]
+  data.table::setnames(dt.corrs, c('Var1', 'Var2'), c('SampleA','SampleB'))
+  dt.corrs <- dt.corrs %>% dplyr::mutate(Spearman = round(Spearman, 3))
+
+  return(dt.corrs[])
+}
+
+## correlation
+#' Title
+#'
+#' @param DT.corrs
+#'
+#' @return
+#' @export
+#'
+#' @examples
+plot_correlation_heatmap <- function(DT.corrs) {
+  n_samples <- length(unique(DT.corrs[,'SampleA']))
+  max_limit <- max(DT.corrs$Spearman)
+  min_limit <- min(DT.corrs$Spearman)
+  mid_limit <- as.numeric(format(((max_limit + min_limit) / 2), digits=3))
+  g <- ggplot2::ggplot(DT.corrs, ggplot2::aes(x=SampleA, y=SampleB, fill=Spearman, label=Spearman)) +
+    ggplot2::geom_tile() +
+    ggplot2::geom_text(color='gray10') +
+    ggplot2::theme_classic() +
+    ggplot2::scale_fill_gradient2(low = "skyblue", high = "tomato1", mid = "white",
+                         midpoint = mid_limit, limit = c(min_limit,max_limit),
+                         space = "Lab", breaks=c(min_limit, mid_limit, max_limit),
+                         name="Spearman\nCorrelation\n") +
+    ggplot2::theme(axis.text.x=ggplot2::element_text(angle=45, hjust=1)) +
+    ggplot2::theme(axis.title.x=ggplot2::element_blank(), axis.title.y=ggplot2::element_blank())
+  return (g)
 }
