@@ -33,5 +33,6 @@ Imports:
 	limma,
 	dplyr,
 	DescTools,
-	matrixStats
+	matrixStats,
+	stats
 	

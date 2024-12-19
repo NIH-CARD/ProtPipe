@@ -48,7 +48,7 @@ create_protdata <- function(data, condition = data.table::data.table(), prot_met
     }
   }
   #standardize the column names and order
-  data <- standardize_format(data)
+  dat <- standardize_format(data)
   data.table::setnames(dat, trim_colnames(dat))
   col_order=c(colnames(dat)[1:2],sort(colnames(dat)[3:ncol(dat)]))
   data.table::setcolorder(dat,col_order)
@@ -197,8 +197,8 @@ standardize_format <- function(DT.original) {
     data.table::setnames(DT, 'PG.Genes', 'Genes')
     DT=as.data.frame(DT)
     # Use only Protein_Group and Genes
-    col_dplyr::select=c('Peptide_Sequence','Genes',grep('raw',colnames(DT),value = T))
-    DT=DT[, col_dplyr::select]
+    dplyr::select=c('Peptide_Sequence','Genes',grep('raw',colnames(DT),value = T))
+    DT=DT[, dplyr::select]
     #as number
     DT[,grep('raw',colnames(DT))]=as.data.frame(apply(DT[,grep('raw',colnames(DT))],2,as.numeric))
     DT=data.table(DT)
@@ -209,8 +209,8 @@ standardize_format <- function(DT.original) {
     data.table::setnames(DT, 'PG.Genes', 'Genes')
     DT=as.data.frame(DT)
     # Use only Protein_Group and Genes
-    col_dplyr::select=c('Protein_Group','Genes',grep('PG.Quantity',colnames(DT),value = T))
-    DT=DT[, col_dplyr::select]
+    dplyr::select=c('Protein_Group','Genes',grep('PG.Quantity',colnames(DT),value = T))
+    DT=DT[, dplyr::select]
     #as number
     DT[,grep('PG.Quantity',colnames(DT))]=as.data.frame(apply(DT[,grep('PG.Quantity',colnames(DT))],2,as.numeric))
     DT=data.table(DT)
@@ -221,8 +221,8 @@ standardize_format <- function(DT.original) {
     colnames(DT)=gsub("\\s", "_",colnames(DT))
     # Use only Protein_Group and Genes
     DT=as.data.frame(DT)
-    col_dplyr::select=c('Peptide_Sequence','Genes',grep('[0-9]_Intensity',colnames(DT),value = T))
-    DT=DT[, col_dplyr::select]
+    dplyr::select=c('Peptide_Sequence','Genes',grep('[0-9]_Intensity',colnames(DT),value = T))
+    DT=DT[, dplyr::select]
     DT=data.table(DT)
   }
 
