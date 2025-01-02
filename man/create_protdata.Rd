@@ -4,21 +4,16 @@
 \alias{create_protdata}
 \title{Create a ProtData Object}
 \usage{
-create_protdata(
-  data,
-  condition = data.frame(),
-  prot_meta = data.frame(),
-  method = "Unknown"
-)
+create_protdata(data, condition = NULL, method = "Unknown")
 }
 \arguments{
 \item{data}{A data frame containing proteomics data (proteins are rows, samples are columns).}
 
 \item{condition}{A data frame containing conditions of the samples. Rownames should match colnames of data. Optional.}
 
-\item{prot_meta}{A data frame containing metadata for the proteins (rows). Optional.}
-
 \item{method}{A character string describing the method used for generating the data. Optional.}
+
+\item{prot_meta}{A data frame containing metadata for the proteins (rows). Optional.}
 }
 \value{
 An instance of the ProtData class.

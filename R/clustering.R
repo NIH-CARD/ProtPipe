@@ -7,7 +7,7 @@
 #' @export
 #'
 #' @examples
-get_PCs <- function(PD) {
+get_PCs <- function(PD, condition = NA) {
   DT <- getData(PD)
   out <- list()
   ##cluster data(na=0)
@@ -30,7 +30,11 @@ get_PCs <- function(PD) {
   out$summary$percent=round(out$summary$percent*100, digits = 2)
   pca_df = as.data.frame(pca$x)[,1:5]
   pca_df$Sample=rownames(pca_df)
-  pca_df$Condition=gsub('_[0-9]+$','',rownames(pca_df))
+  if(is.na(condition)){
+    pca_df$Condition=gsub('_[0-9]+$','',rownames(pca_df))
+  }else {
+    pca_df$Condition=getCondition(PD)[[condition]]
+  }
   out$components <- pca_df
   return(out)
 }
@@ -44,8 +48,8 @@ get_PCs <- function(PD) {
 #' @export
 #'
 #' @examples
-plot_PCs <- function(PD) {
-  PCA <- get_PCs(PD)
+plot_PCs <- function(PD, condition = NA) {
+  PCA <- get_PCs(PD, condition)
   p <- ggplot2::ggplot(PCA$components, ggplot2::aes(x = PC1, y = PC2, color = Condition)) +
     ggplot2::geom_point(size=4) +
     ggplot2::xlab(paste0("PC1","(",PCA$summary$percent[1],"%)")) +
@@ -92,7 +96,7 @@ plot_hierarchical_cluster <- function(PD) {
 #' @export
 #'
 #' @examples
-get_umap <- function(PD, neighbors = 15) {
+get_umap <- function(PD, neighbors = 15, condition = NA) {
   DT <- getData(PD)
   ##cluster data(na=0)
   cluster_data <- DT %>%
@@ -110,7 +114,11 @@ get_umap <- function(PD, neighbors = 15) {
   DT.umap <- umap::umap(t(log2_cluster_data), n_neighbors=neighbors)
   DT.out <- data.table::as.data.table(DT.umap$layout, keep.rownames=TRUE)
   data.table::setnames(DT.out, c('Sample', 'UMAP1', 'UMAP2'))
-  DT.out$Condition=gsub('_[0-9]+$','',DT.out$Sample)
+  if(is.na(condition)){
+    DT.out$Condition=gsub('_[0-9]+$','',DT.out$Sample)
+  }else {
+    DT.out$Condition=getCondition(PD)[[condition]]
+  }
   return(DT.out[])
 }
 
@@ -122,8 +130,8 @@ get_umap <- function(PD, neighbors = 15) {
 #' @export
 #'
 #' @examples
-plot_umap <- function(PD) {
-  DT <- get_umap(PD)
+plot_umap <- function(PD, neighbors = 15, condition = NA) {
+  DT <- get_umap(PD, neighbors = neighbors, condition = condition)
   g <- ggplot2::ggplot(DT, ggplot2::aes(x=UMAP1, y=UMAP2, color=Condition)) +
     ggplot2::geom_point(size=4) +
     ggplot2::theme_classic()

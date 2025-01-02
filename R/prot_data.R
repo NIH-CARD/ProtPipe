@@ -7,14 +7,14 @@ setClass("ProtData",
          slots = list(
            data = "data.table",      # The main proteomics data (proteins are rows, samples are columns)
            data.long = "data.table",
-           condition = "data.table",  # Conditions of the samples. Rownames must match colnames of data
+           condition = "data.frame",  # Conditions of the samples. Rownames must match colnames of data
            prot_meta = "data.table",  # information about the rows (genes, organism, etc...)
            method = "character"       # The method used (e.g., "MS", "Somascan", etc.)
          ),
          prototype = list(
            data = data.table::data.table(),        # Default is an empty data frame
            data.long = data.table::data.table(),   # Default is an empty data frame
-           condition = data.table::data.table(),   # Default is an empty data frame
+           condition = data.frame(),   # Default is an empty data frame
            prot_meta = data.table::data.table(),   # Default is an empty data frame
            method = "Unknown"          # Default method is set to "Unknown"
          )
@@ -34,49 +34,84 @@ setClass("ProtData",
 #'
 #' @return An instance of the ProtData class.
 #' @export
-create_protdata <- function(data, condition = data.table::data.table(), prot_meta = data.table::data.table(), method = "Unknown") {
+create_protdata <- function(data, condition = NULL, method = "Unknown") {
 
   # Check that data is a data frame
   if (!is.data.frame(data)) {
     stop("The 'data' argument must be a data frame.")
   }
 
-  # Ensure that condition, if provided, has rownames matching the colnames of data
-  if (!is.null(condition)) {
-    if (!all(rownames(condition) %in% colnames(data))) {
-      stop("Rownames of 'condition' must match the colnames of 'data'.")
-    }
-  }
   #standardize the column names and order
-  dat <- standardize_format(data)
-  data.table::setnames(dat, trim_colnames(dat))
-  col_order=c(colnames(dat)[1:2],sort(colnames(dat)[3:ncol(dat)]))
-  data.table::setcolorder(dat,col_order)
-  data <- data %>%
-    # Calculate missing values
-    dplyr::mutate(missing_value = rowSums(is.na(dplyr::select(., -contains("Protein_Group|Genes")))))%>%
-    # Calculate median values
-    dplyr::mutate(median = matrixStats::rowMedians(as.matrix(dplyr::select(., -contains("Protein_Group|Genes|missing_value")) %>%
-                                           dplyr::select_if(is.numeric)), na.rm = TRUE)) %>%
-    #Identify unique Protein_Group with the least missing values and highest median intensity
-    dplyr::group_by(Protein_Group) %>%
-    dplyr::filter(missing_value == min(missing_value)) %>%
-    dplyr::slice(which.max(median)) %>%
-    dplyr::ungroup() %>%
-    dplyr::select(-c(missing_value, median))
+  #dat <- standardize_format(data)
+  colnames(dat) <- trim_colnames(dat)
+  # col_order=c(colnames(dat)[1:2],sort(colnames(dat)[3:ncol(dat)]))
+  # data.table::setcolorder(dat,col_order)
 
-  dat.long <- melt_intensity_table(data)
+  # This should be a seperate function
+  # dat <- dat %>%
+  #   # Calculte missing values
+  #   dplyr::mutate(missing_value = rowSums(is.na(dplyr::select(., -contains("Protein_Group|Genes")))))%>%
+  #   # Calculate median values
+  #   dplyr::mutate(median = matrixStats::rowMedians(as.matrix(dplyr::select(., -contains("Protein_Group|Genes|missing_value")) %>%
+  #                                          dplyr::select_if(is.numeric)), na.rm = TRUE)) %>%
+  #   #Identify unique Protein_Group with the least missing values and highest median intensity
+  #   dplyr::group_by(Protein_Group) %>%
+  #   dplyr::filter(missing_value == min(missing_value)) %>%
+  #   dplyr::slice(which.max(median)) %>%
+  #   dplyr::ungroup() %>%
+  #   dplyr::select(-c(missing_value, median))
+
+  dat.long <- melt_intensity_table(dat)
   dat.long <- dat.long[rowSums(is.na(dat.long)) < ncol(dat.long),]
   #dat.long <- dat.long[! is.na(Intensity)][Intensity != 0]
   #filter intensity
   #dat.long <- dat.long[Intensity > opt$minintensity]
 
+  #Split up numeric (intensity) and non-numeric (protein metadata) into seperate dataframes
+  prot_meta <- as.data.frame(dat[, !sapply(dat, is.numeric)])
+  data <- as.data.frame(dat[, sapply(dat, is.numeric)])
+
+  ## CONDITION FILE ###################
+
+  # Ensure that condition, if provided, has rownames matching the colnames of data
+  if (!is.null(condition)) {
+    if (!all(rownames(condition) %in% colnames(data))) {
+      stop("Rownames of 'condition' must match the colnames of 'data'.")
+    }
+    # add additional rows to condition if they exist in data
+    if (ncol(data) > nrow(condition)) {
+      # Find missing columns
+      missing_cols <- setdiff(colnames(data), rownames(condition))
+
+      # Create rows with NA for the missing columns and add them to 'condition'
+      missing_rows <- data.table(matrix(NA, nrow = length(missing_cols), ncol = ncol(condition)))
+      setnames(missing_rows, names(condition))
+      rownames(missing_rows) <- missing_cols
+
+      # Add missing rows to 'condition'
+      condition <- rbind(condition, missing_rows)
+    }
+
+    # Reorder 'condition' to match the order of 'data' columns
+    condition <- condition[match(colnames(data), rownames(condition)), , drop = FALSE]
+  }
+
+  # if condition file is not provided, one is generated by removing _{replicate number} from each
+  # sample name if present
+  else {
+    condition <- data.frame(
+      base_condition = gsub("_\\d+$", "", colnames(data))  # Remove _ followed by digits at the end of the column names
+    )
+    rownames(condition) <- colnames(data)
+  }
+
+
   # Create a new ProtData object
   new("ProtData",
-      data = data.table::setDT(data),
+      data = data.table::as.data.table(data),
       data.long = dat.long,
       condition = condition,
-      prot_meta = prot_meta,
+      prot_meta = data.table::as.data.table(prot_meta),
       method = method)
 }
 
@@ -129,8 +164,8 @@ setMethod("getCondition", "ProtData", function(object) {
 })
 
 setMethod("setCondition", "ProtData", function(object, value) {
-  if (!inherits(value, "data.table")) {
-    stop("'condition' must be a data.table.")
+  if (!inherits(value, "data.frame")) {
+    stop("'condition' must be a data.frame.")
   }
   object@condition <- value
   return(object)
@@ -171,24 +206,86 @@ setMethod("setProtMethod",
             return(object)
           })
 
+####### Class Methods ###############################################################
+
+setGeneric("removeOutliers", function(object, sds = 3) standardGeneric("removeOutliers"))
+setMethod("removeOutliers",
+          "ProtData",
+          function(object, sds = 3){
+            pgcounts <- data.table::as.data.table(table(getDataLong(object)$Sample))
+            colnames(pgcounts) <- c("Sample", "N")
+            pgcounts$Condition=as.factor(gsub('_[0-9]+$','',pgcounts$Sample))
+            dat <- getData(object)
+            dat.long <- getDataLong(object)
+            condition <- getCondition(object)
+
+            stdev <- sd(pgcounts[,'N'])
+            mean_count <- mean(pgcounts[,'N'])
+            min_protein_groups <- floor(mean_count - (sds * stdev))
+            max_protein_groups <- ceiling(mean_count + (sds * stdev))
+            cat(paste0('INFO: Tolerating protein group counts in the range [', min_protein_groups,',',max_protein_groups,']'))
+            low_count_samples <- as.character(pgcounts['N' < min_protein_groups, 'Sample'])
+            high_count_samples <- as.character(pgcounts['N' > max_protein_groups, 'Sample'])
+            if(length(low_count_samples)==0) {
+              cat('\nINFO: No low group count samples to remove\n')
+            } else {
+              cat(paste0('\nINFO: runing low-count outlier ', low_count_samples))
+              cat('\n\n')
+              print(pgcounts[Sample %in% low_count_samples])
+              cat('\n')
+              dat[, colnames(dat) %in% low_count_samples]= NULL    # remove sample columns from wide table
+              dat.long <- dat.long[! (Sample %in% low_count_samples)] # remove rows from long table
+            }
+            if(length(high_count_samples)==0) {
+              cat('INFO: No high group count samples to remove\n')
+            } else {
+              cat(paste0('\nINFO: runing high-count outlier ', high_count_samples))
+              cat('\n')
+              #print(pgcounts['Sample' %in% high_count_samples])
+              dat[, colnames(dat) %in% high_count_samples]= NULL     # remove sample columns from wide table
+              dat.long <- dat.long[! ('Sample' %in% high_count_samples)] # remove rows from long table
+            }
+            object <- setData(object, dat)
+            object <- setDataLong(object, dat.long)
+            #object <- setCondition(object, condition)
+            return(object)
+          }
+      )
+
+setGeneric("removeSample", function(object, samples) standardGeneric("removeSample"))
+setMethod("removeSample",
+          "ProtData",
+          function(object, samples){
+            dat <- getData(object)
+            dat.long <- getDataLong(object)
+            condition <- getCondition(object)
+
+            dat <- dat[,!(colnames(dat) %in% samples)]
+            dat.long <- dat.long[!'Sample' %in% samples]
+            condition <-condition[!(rownames(condition) %in% samples),]
+
+            object <- setData(object, dat)
+            object <- setDataLong(object, dat.long)
+            object <- setCondition(object, condition)
+            return(object)
+          }
+)
 
 
 
 
-
-
-######## HELPER METHODS ####################################################################
+######## HELPER FUNCTIONS ####################################################################
 
 #total proteomics############
 standardize_format <- function(DT.original) {
   # Accepts an input protein group intensity data.table, whether spectronaut or DIA-NN format,
   # and restructures into one consistent style for downstream processing
   DT <- DT.original
-  if("Protein.Ids" %in% colnames(DT)) {
-    print("DIAnn input")
-    DT[, 'Protein.Ids' := NULL]
-    DT[, 'Protein.Names' := NULL]
-    DT[, 'First.Protein.Description' := NULL]
+  if("Protein.Ids" %in% colnames(DT) | "Protein.Group" %in% colnames(DT)) {
+    # print("DIAnn input")
+    # DT[, 'Protein.Ids' := NULL]
+    # DT[, 'Protein.Names' := NULL]
+    # DT[, 'First.Protein.Description' := NULL]
     data.table::setnames(DT, 'Protein.Group', 'Protein_Group')
   }
   else if('EG.PrecursorId' %in% colnames(DT)) {
@@ -241,6 +338,9 @@ standardize_format <- function(DT.original) {
 trim_colnames <- function(DT) {
   colnames_out <- gsub(pattern="\\[.*\\] ", replacement='', x=colnames(DT))   # trim leading [N]
   colnames_out <- gsub(pattern="\\..*\\.PG\\.Quantity|\\.PG\\.Quantity|\\..*Quantity.*", replacement='', x=colnames_out)   # remove suffix
+  # Remove everything before the last "/" and remove extensions like .raw or .mzml
+  colnames_out <- gsub(pattern=".*/", replacement='', x=colnames_out)
+  colnames_out <- gsub(pattern="\\.(raw|mzml)$", replacement='', x=colnames_out)
   return(colnames_out)
 }
 

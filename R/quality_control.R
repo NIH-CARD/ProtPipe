@@ -7,7 +7,7 @@
 #' @export
 #'
 #' @examples
-plot_pg_counts <- function(PD, by_condition = F) {
+plot_pg_counts <- function(PD, condition = NULL) {
 
   # get the number of protein groups per sample
   pgcounts <- data.table::as.data.table(table(getDataLong(PD)$Sample))
@@ -16,7 +16,7 @@ plot_pg_counts <- function(PD, by_condition = F) {
 
   # Order samples by ascending counts
   n_samples <- nrow(pgcounts)
-  if (!by_condition){
+  if (is.null(condition)){
     if (n_samples > 20) {
       p=ggplot2::ggplot(pgcounts, ggplot2::aes(x=Sample, y=N)) +
         ggplot2::geom_bar(stat="identity", fill="#67a9cf")+
@@ -34,16 +34,21 @@ plot_pg_counts <- function(PD, by_condition = F) {
     }
   }else{
   # group by condition
-    summary_data <- pgcounts %>%
-      dplyr::group_by(Condition) %>%
-      dplyr::summarize(mean = mean(N), sd = sd(N)) %>%
-      dplyr::arrange(Condition)
-    p=ggplot2::ggplot(summary_data, ggplot2::aes(x=as.factor(Condition), y=mean)) +
-      ggplot2::geom_bar(stat="identity",fill="#67a9cf", position= ggplot2::position_dodge())+
-      ggplot2::theme_classic()+
-      ggplot2::geom_errorbar(ggplot2::aes(ymin=mean-sd, ymax=mean+sd), width=.2,
-                    position=ggplot2::position_dodge(.9))+
-      ggplot2::labs(fill = "",x="",y='Number of Protein Groups')
+    condition_file <- getCondition(PD)
+    if (condition %in% colnames(condition_file)){
+      summary_data <- pgcounts %>%
+        dplyr::group_by(Condition) %>%
+        dplyr::summarize(mean = mean(N), sd = sd(N)) %>%
+        dplyr::arrange(Condition)
+      p=ggplot2::ggplot(summary_data, ggplot2::aes(x=as.factor(Condition), y=mean)) +
+        ggplot2::geom_bar(stat="identity",fill="#67a9cf", position= ggplot2::position_dodge())+
+        ggplot2::theme_classic()+
+        ggplot2::geom_errorbar(ggplot2::aes(ymin=mean-sd, ymax=mean+sd), width=.2,
+                               position=ggplot2::position_dodge(.9))+
+        ggplot2::labs(fill = "",x="",y='Number of Protein Groups')
+    }else{
+      stop("the selected condition does not appear in the condition file")
+    }
   }
   return(p)
 }
@@ -82,7 +87,9 @@ plot_pg_intensities <- function(PD) {
 get_spearman <- function(PD, method = 'spearman') {
   DT <- getData(PD)
   #### Pairwise correlations between sample columns
-  dt.samples <- DT[,-c(1:2)]     # Ignore info columns (subset to only intensity values)
+  #dt.samples <- DT[,-c(1:2)]     # Ignore info columns (subset to only intensity values)
+  dt.samples <- DT[, sapply(DT, is.numeric)] #better way of getting just intensity columns
+
   dt.corrs <- cor(log2(as.matrix(na.omit(dt.samples))+1), method=method)
 
   # Format correlations as 3 digits
@@ -103,20 +110,61 @@ get_spearman <- function(PD, method = 'spearman') {
 #' @export
 #'
 #' @examples
-plot_correlation_heatmap <- function(DT.corrs) {
+plot_correlation_heatmap <- function(PD, condition = NULL) {
+  DT.corrs <- get_spearman(PD)
   n_samples <- length(unique(DT.corrs[,'SampleA']))
   max_limit <- max(DT.corrs$Spearman)
   min_limit <- min(DT.corrs$Spearman)
   mid_limit <- as.numeric(format(((max_limit + min_limit) / 2), digits=3))
-  g <- ggplot2::ggplot(DT.corrs, ggplot2::aes(x=SampleA, y=SampleB, fill=Spearman, label=Spearman)) +
-    ggplot2::geom_tile() +
-    ggplot2::geom_text(color='gray10') +
-    ggplot2::theme_classic() +
-    ggplot2::scale_fill_gradient2(low = "skyblue", high = "tomato1", mid = "white",
-                         midpoint = mid_limit, limit = c(min_limit,max_limit),
-                         space = "Lab", breaks=c(min_limit, mid_limit, max_limit),
-                         name="Spearman\nCorrelation\n") +
-    ggplot2::theme(axis.text.x=ggplot2::element_text(angle=45, hjust=1)) +
-    ggplot2::theme(axis.title.x=ggplot2::element_blank(), axis.title.y=ggplot2::element_blank())
+  if (is.null(condition)){
+    g <- ggplot2::ggplot(DT.corrs, ggplot2::aes(x=SampleA, y=SampleB, fill=Spearman, label = NA)) +
+      ggplot2::geom_tile() +
+      ggplot2::geom_text(color='gray10') +
+      ggplot2::theme_classic() +
+      ggplot2::scale_fill_gradient2(low = "skyblue", high = "tomato1", mid = "white",
+                                    midpoint = mid_limit, limit = c(min_limit,max_limit),
+                                    space = "Lab", breaks=c(min_limit, mid_limit, max_limit),
+                                    name="Spearman\nCorrelation\n") +
+      ggplot2::theme(axis.text.x=ggplot2::element_text(angle=45, hjust=1)) +
+      ggplot2::theme(axis.title.x=ggplot2::element_blank(), axis.title.y=ggplot2::element_blank())
+  }else{
+    condition_file <<- getCondition(PD)
+    if (condition %in% colnames(condition_file)){
+      condition_map <- setNames(condition_file$base_condition, rownames(condition_file))
+
+      # Reorder the levels of SampleA and SampleB so that samples with the same condition appear together
+      # DT.corrs$SampleA <- factor(DT.corrs$SampleA, levels = names(condition_map)[order(condition_map[DT.corrs$SampleA])])
+      # DT.corrs$SampleB <- factor(DT.corrs$SampleB, levels = names(condition_map)[order(condition_map[DT.corrs$SampleB])])
+
+      DT.corrs <<- DT.corrs
+      g <- ggplot2::ggplot(DT.corrs, ggplot2::aes(x=SampleA, y=SampleB, fill=Spearman, label = NA)) +
+        ggplot2::geom_tile() +
+        ggplot2::geom_text(color='gray10') +
+        ggplot2::theme_classic() +
+        ggplot2::scale_fill_gradient2(low = "skyblue", high = "tomato1", mid = "white",
+                                      midpoint = mid_limit, limit = c(min_limit,max_limit),
+                                      space = "Lab", breaks=c(min_limit, mid_limit, max_limit),
+                                      name="Spearman\nCorrelation\n") +
+        ggplot2::theme(axis.text.x=ggplot2::element_text(angle=45, hjust=1)) +
+        ggplot2::theme(axis.title.x=ggplot2::element_blank(), axis.title.y=ggplot2::element_blank())+
+
+        # Update x and y axis labels with conditions
+        ggplot2::scale_x_discrete(labels = function(x) {
+          # Show the condition only for the first sample in each group of same-condition samples
+          labels <- condition_map[x]
+          labels[duplicated(labels)] <- ""  # Blank out duplicates
+          return(labels)
+        }) +
+        ggplot2::scale_y_discrete(labels = function(x) {
+          # Show the condition only for the first sample in each group of same-condition samples
+          labels <- condition_map[x]
+          labels[duplicated(labels)] <- ""  # Blank out duplicates
+          return(labels)
+        })
+    }else{
+      stop("the selected condition does not appear in the condition file")
+    }
+  }
   return (g)
+
 }
