@@ -214,18 +214,20 @@ setMethod("removeOutliers",
           function(object, sds = 3){
             pgcounts <- data.table::as.data.table(table(getDataLong(object)$Sample))
             colnames(pgcounts) <- c("Sample", "N")
-            pgcounts$Condition=as.factor(gsub('_[0-9]+$','',pgcounts$Sample))
-            dat <- getData(object)
-            dat.long <- getDataLong(object)
-            condition <- getCondition(object)
+            pgcounts <<- pgcounts
+
+            dat <- object@data
+            dat.long <- object@data.long
+            cond <- object@condition
 
             stdev <- sd(pgcounts[,'N'])
             mean_count <- mean(pgcounts[,'N'])
             min_protein_groups <- floor(mean_count - (sds * stdev))
             max_protein_groups <- ceiling(mean_count + (sds * stdev))
             cat(paste0('INFO: Tolerating protein group counts in the range [', min_protein_groups,',',max_protein_groups,']'))
-            low_count_samples <- as.character(pgcounts['N' < min_protein_groups, 'Sample'])
-            high_count_samples <- as.character(pgcounts['N' > max_protein_groups, 'Sample'])
+            low_count_samples <- as.character(pgcounts[pgcounts$N < min_protein_groups, 'Sample'])
+            high_count_samples <- as.character(pgcounts[pgcounts$N > max_protein_groups, 'Sample'])
+            print(high_count_samples)
             if(length(low_count_samples)==0) {
               cat('\nINFO: No low group count samples to remove\n')
             } else {
@@ -233,21 +235,23 @@ setMethod("removeOutliers",
               cat('\n\n')
               print(pgcounts[Sample %in% low_count_samples])
               cat('\n')
-              dat[, colnames(dat) %in% low_count_samples]= NULL    # remove sample columns from wide table
-              dat.long <- dat.long[! (Sample %in% low_count_samples)] # remove rows from long table
             }
             if(length(high_count_samples)==0) {
               cat('INFO: No high group count samples to remove\n')
             } else {
               cat(paste0('\nINFO: runing high-count outlier ', high_count_samples))
               cat('\n')
-              #print(pgcounts['Sample' %in% high_count_samples])
-              dat[, colnames(dat) %in% high_count_samples]= NULL     # remove sample columns from wide table
-              dat.long <- dat.long[! ('Sample' %in% high_count_samples)] # remove rows from long table
+              print(pgcounts['Sample' %in% high_count_samples])
             }
-            object <- setData(object, dat)
-            object <- setDataLong(object, dat.long)
-            #object <- setCondition(object, condition)
+            outliers <- c(low_count_samples, high_count_samples)
+
+            dat <- dat[,!(colnames(dat) %in% outliers),drop = FALSE]
+            dat.long <- dat.long[!dat.long$Sample %in% outliers, ,drop = FALSE]
+            cond <- cond[!rownames(cond) %in% outliers, ,drop = FALSE]
+
+            object@data <- dat
+            object@data.long <- dat.long
+            object@condition <- cond
             return(object)
           }
       )
@@ -256,17 +260,17 @@ setGeneric("removeSample", function(object, samples) standardGeneric("removeSamp
 setMethod("removeSample",
           "ProtData",
           function(object, samples){
-            dat <- getData(object)
-            dat.long <- getDataLong(object)
-            condition <- getCondition(object)
+            dat <- object@data
+            dat.long <- object@data.long
+            cond <- object@condition
 
-            dat <- dat[,!(colnames(dat) %in% samples)]
-            dat.long <- dat.long[!'Sample' %in% samples]
-            condition <-condition[!(rownames(condition) %in% samples),]
+            dat <- dat[,!(colnames(dat) %in% samples),drop = FALSE]
+            dat.long <- dat.long[!dat.long$Sample %in% samples, ,drop = FALSE]
+            cond <- cond[!rownames(cond) %in% samples, ,drop = FALSE]
 
-            object <- setData(object, dat)
-            object <- setDataLong(object, dat.long)
-            object <- setCondition(object, condition)
+            object@data <- dat
+            object@data.long <- dat.long
+            object@condition <- cond
             return(object)
           }
 )
@@ -340,7 +344,7 @@ trim_colnames <- function(DT) {
   colnames_out <- gsub(pattern="\\..*\\.PG\\.Quantity|\\.PG\\.Quantity|\\..*Quantity.*", replacement='', x=colnames_out)   # remove suffix
   # Remove everything before the last "/" and remove extensions like .raw or .mzml
   colnames_out <- gsub(pattern=".*/", replacement='', x=colnames_out)
-  colnames_out <- gsub(pattern="\\.(raw|mzml)$", replacement='', x=colnames_out)
+  colnames_out <- gsub(pattern="\\.(raw|mzML)$", replacement='', x=colnames_out)
   return(colnames_out)
 }
 

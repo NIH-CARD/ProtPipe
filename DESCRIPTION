@@ -34,5 +34,6 @@ Imports:
 	dplyr,
 	DescTools,
 	matrixStats,
-	stats
+	stats,
+	rlang
 	

@@ -26,7 +26,7 @@ get_PCs <- function(PD, condition = NA) {
   pca_data <- t(log2_cluster_data)
   pca=stats::prcomp(pca_data, center = TRUE, scale. = TRUE)#pca,remember if you use the sample to do the pca,you need to transpose
   out$summary <- data.table::as.data.table(t(summary(pca)$importance), keep.rownames=T)
-  setnames(out$summary, c('component','stdv','percent','cumulative'))
+  data.table::setnames(out$summary, c('component','stdv','percent','cumulative'))
   out$summary$percent=round(out$summary$percent*100, digits = 2)
   pca_df = as.data.frame(pca$x)[,1:5]
   pca_df$Sample=rownames(pca_df)

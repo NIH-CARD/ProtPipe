@@ -12,7 +12,8 @@ plot_pg_counts <- function(PD, condition = NULL) {
   # get the number of protein groups per sample
   pgcounts <- data.table::as.data.table(table(getDataLong(PD)$Sample))
   colnames(pgcounts) <- c("Sample", "N")
-  pgcounts$Condition=as.factor(gsub('_[0-9]+$','',pgcounts$Sample))
+  pgcounts <- pgcounts[pgcounts$N != 0, ]
+  #pgcounts$Condition=as.factor(gsub('_[0-9]+$','',pgcounts$Sample))
 
   # Order samples by ascending counts
   n_samples <- nrow(pgcounts)
@@ -36,6 +37,12 @@ plot_pg_counts <- function(PD, condition = NULL) {
   # group by condition
     condition_file <- getCondition(PD)
     if (condition %in% colnames(condition_file)){
+      condition_file <- condition_file %>%
+        dplyr::mutate(Sample = rownames(condition_file)) %>%
+        dplyr::select(c(!!rlang::sym(condition), Sample))
+      pgcounts <- pgcounts %>%
+        dplyr::left_join(condition_file, by = "Sample") %>%
+        dplyr::rename(Condition = !!rlang::sym(condition))  # Rename the dynamic column to 'Condition'
       summary_data <- pgcounts %>%
         dplyr::group_by(Condition) %>%
         dplyr::summarize(mean = mean(N), sd = sd(N)) %>%
