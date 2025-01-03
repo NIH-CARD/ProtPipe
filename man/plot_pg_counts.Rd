@@ -4,7 +4,7 @@
 \alias{plot_pg_counts}
 \title{Title}
 \usage{
-plot_pg_counts(PD, by_condition = F)
+plot_pg_counts(PD, condition = NULL)
 }
 \arguments{
 \item{PD}{A prot_data object}

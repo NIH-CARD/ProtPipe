@@ -4,7 +4,7 @@
 \alias{plot_correlation_heatmap}
 \title{Title}
 \usage{
-plot_correlation_heatmap(PD, label = NA)
+plot_correlation_heatmap(PD, condition = NULL)
 }
 \arguments{
 \item{DT.corrs}{}
