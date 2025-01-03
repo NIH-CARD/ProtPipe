@@ -76,7 +76,15 @@ create_protdata <- function(dat, condition = NULL, method = "Unknown") {
   # Ensure that condition, if provided, has rownames matching the colnames of data
   if (!is.null(condition)) {
     if (!all(rownames(condition) %in% colnames(data))) {
-      stop("Rownames of 'condition' must match the colnames of 'data'.")
+      print("Rownames of 'condition' do not match the colnames of 'data'.")
+
+      # Drop rows of condition that are not in data
+      matching_rows <- intersect(rownames(condition), colnames(data))
+      condition <- condition[matching_rows, ]
+
+      dropped_rows <- setdiff(rownames(condition), matching_rows)
+      warning("Dropped rows:\n")
+      warning(condition[dropped_rows, ])
     }
     # add additional rows to condition if they exist in data
     if (ncol(data) > nrow(condition)) {
