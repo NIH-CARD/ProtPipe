@@ -84,7 +84,7 @@ create_protdata <- function(dat, condition = NULL, method = "Unknown") {
 
       dropped_rows <- setdiff(rownames(condition), matching_rows)
       warning("Dropped rows:\n")
-      warning(condition[dropped_rows, ])
+      warning(dropped_rows)
     }
     # add additional rows to condition if they exist in data
     if (ncol(data) > nrow(condition)) {

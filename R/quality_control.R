@@ -137,7 +137,7 @@ plot_correlation_heatmap <- function(PD, condition = NULL) {
   }else{
     condition_file <<- getCondition(PD)
     if (condition %in% colnames(condition_file)){
-      condition_map <- setNames(condition_file$base_condition, rownames(condition_file))
+      condition_map <- setNames(condition_file[[condition]], rownames(condition_file))
 
       # Reorder the levels of SampleA and SampleB so that samples with the same condition appear together
       # DT.corrs$SampleA <- factor(DT.corrs$SampleA, levels = names(condition_map)[order(condition_map[DT.corrs$SampleA])])
