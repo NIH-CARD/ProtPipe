@@ -240,34 +240,28 @@ setMethod("removeOutliers",
             mean_count <- mean(pgcounts[,'N'])
             min_protein_groups <- floor(mean_count - (sds * stdev))
             max_protein_groups <- ceiling(mean_count + (sds * stdev))
-            cat(paste0('INFO: Tolerating protein group counts in the range [', min_protein_groups,',',max_protein_groups,']'))
+            cat(paste0('INFO: Tolerating protein group counts in the range [', min_protein_groups,',',max_protein_groups,']\n'))
             low_count_samples <- as.character(pgcounts[pgcounts$N < min_protein_groups, 'Sample'])
+            if(length(low_count_samples)>0){
+              print("removing the following samples with low protein counts:")
+              print(low_count_samples)
+            }
             high_count_samples <- as.character(pgcounts[pgcounts$N > max_protein_groups, 'Sample'])
-            print(high_count_samples)
-            if(length(low_count_samples)==0) {
-              cat('\nINFO: No low group count samples to remove\n')
-            } else {
-              cat(paste0('\nINFO: runing low-count outlier ', low_count_samples))
-              cat('\n\n')
-              print(pgcounts[Sample %in% low_count_samples])
-              cat('\n')
+            if(length(high_count_samples)>0){
+              print("removing the following samples with high protein counts:")
+              print(high_count_samples)
             }
-            if(length(high_count_samples)==0) {
-              cat('INFO: No high group count samples to remove\n')
-            } else {
-              cat(paste0('\nINFO: runing high-count outlier ', high_count_samples))
-              cat('\n')
-              print(pgcounts['Sample' %in% high_count_samples])
-            }
+
             outliers <- c(low_count_samples, high_count_samples)
+            if (length(outliers) >0){
+              dat <- dat[,!(colnames(dat) %in% outliers),drop = FALSE]
+              dat.long <- dat.long[!dat.long$Sample %in% outliers, ,drop = FALSE]
+              cond <- cond[!rownames(cond) %in% outliers, ,drop = FALSE]
 
-            dat <- dat[,!(colnames(dat) %in% outliers),drop = FALSE]
-            dat.long <- dat.long[!dat.long$Sample %in% outliers, ,drop = FALSE]
-            cond <- cond[!rownames(cond) %in% outliers, ,drop = FALSE]
-
-            object@data <- dat
-            object@data.long <- dat.long
-            object@condition <- cond
+              object@data <- dat
+              object@data.long <- dat.long
+              object@condition <- cond
+            }
             return(object)
           }
       )
