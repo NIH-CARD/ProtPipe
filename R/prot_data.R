@@ -217,6 +217,14 @@ setMethod("setProtMethod",
 ####### Class Methods ###############################################################
 
 setGeneric("removeOutliers", function(object, sds = 3) standardGeneric("removeOutliers"))
+#' Title
+#'
+#' @param ProtData
+#'
+#' @return
+#' @export
+#'
+#' @examples
 setMethod("removeOutliers",
           "ProtData",
           function(object, sds = 3){
@@ -265,6 +273,14 @@ setMethod("removeOutliers",
       )
 
 setGeneric("removeSample", function(object, samples) standardGeneric("removeSample"))
+#' Title
+#'
+#' @param ProtData
+#'
+#' @return
+#' @export
+#'
+#' @examples
 setMethod("removeSample",
           "ProtData",
           function(object, samples){
@@ -282,8 +298,6 @@ setMethod("removeSample",
             return(object)
           }
 )
-
-
 
 
 ######## HELPER FUNCTIONS ####################################################################
