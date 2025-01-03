@@ -34,10 +34,10 @@ setClass("ProtData",
 #'
 #' @return An instance of the ProtData class.
 #' @export
-create_protdata <- function(data, condition = NULL, method = "Unknown") {
+create_protdata <- function(dat, condition = NULL, method = "Unknown") {
 
   # Check that data is a data frame
-  if (!is.data.frame(data)) {
+  if (!is.data.frame(dat)) {
     stop("The 'data' argument must be a data frame.")
   }
 
