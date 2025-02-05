@@ -10,10 +10,8 @@
 plot_pg_counts <- function(PD, condition = NULL) {
 
   # get the number of protein groups per sample
-  pgcounts <- data.table::as.data.table(table(getDataLong(PD)$Sample))
-  colnames(pgcounts) <- c("Sample", "N")
-  pgcounts <- pgcounts[pgcounts$N != 0, ]
-  #pgcounts$Condition=as.factor(gsub('_[0-9]+$','',pgcounts$Sample))
+  N_values <<- colSums(!is.na(getData(PD)))
+  pgcounts <<- data.frame(Sample = names(N_values), N = N_values)
 
   # Order samples by ascending counts
   n_samples <- nrow(pgcounts)
@@ -69,15 +67,23 @@ plot_pg_counts <- function(PD, condition = NULL) {
 #'
 #' @examples
 plot_pg_intensities <- function(PD) {
-  DT <- getDataLong(PD)
-  n_samples <- length(unique(DT$Sample))
-  g <- ggplot2::ggplot(DT, ggplot2::aes(x=Sample, y=log10(Intensity))) +
-    ggplot2::geom_boxplot(outlier.shape = NA, fill="#67a9cf") +
+  # Assuming PD@data is a data frame with proteins as rows and samples as columns
+  dat <- PD@data  # Or however you access your data frame in the wide format
+  dat_long <- reshape2::melt(dat,
+                            measure.vars=names(dat)[sapply(dat, function(x) all(is.numeric(x)))],
+                            variable.name='Sample',
+                            value.name='Intensity')
+  dat_long <- dat_long[dat_long$Intensity>0,]
+  dat_long <<- dat_long[rowSums(is.na(dat_long)) < ncol(dat_long),]
+  # Plot the boxplot
+  g <- ggplot2::ggplot(dat_long, ggplot2::aes(x = Sample, y = log10(Intensity))) +
+    ggplot2::geom_boxplot(outlier.shape = NA, fill = "#67a9cf") +
     ggplot2::theme_classic() +
-    ggplot2::labs(fill = "",x="",y='Log10 Protein Intensity') +
-    ggplot2::theme(axis.text.x = ggplot2::element_text( angle=90)) +
-    ggplot2::geom_boxplot(width=0.1) +
-    ggplot2::geom_hline(color='#ef8a62', linetype='dashed',  ggplot2::aes(yintercept=quantile(log10(DT$Intensity), 0.50)))
+    ggplot2::labs(fill = "", x = "", y = "Log10 Protein Intensity") +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90)) +
+    ggplot2::geom_boxplot(width = 0.1) +
+    ggplot2::geom_hline(color = '#ef8a62', linetype = 'dashed',
+                        ggplot2::aes(yintercept = quantile(log10(Intensity), 0.50, na.rm = TRUE)))
 
   return(g)
 }

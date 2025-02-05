@@ -5,21 +5,18 @@
 #' @export
 setClass("ProtData",
          slots = list(
-           data = "data.table",      # The main proteomics data (proteins are rows, samples are columns)
-           data.long = "data.table",
+           data = "data.frame",      # The main proteomics data (proteins are rows, samples are columns)
            condition = "data.frame",  # Conditions of the samples. Rownames must match colnames of data
-           prot_meta = "data.table",  # information about the rows (genes, organism, etc...)
+           prot_meta = "data.frame",  # information about the rows (genes, organism, etc...)
            method = "character"       # The method used (e.g., "MS", "Somascan", etc.)
          ),
          prototype = list(
-           data = data.table::data.table(),        # Default is an empty data frame
-           data.long = data.table::data.table(),   # Default is an empty data frame
+           data = data.frame(),        # Default is an empty data frame
            condition = data.frame(),   # Default is an empty data frame
-           prot_meta = data.table::data.table(),   # Default is an empty data frame
+           prot_meta = data.frame(),   # Default is an empty data frame
            method = "Unknown"          # Default method is set to "Unknown"
          )
 )
-
 
 
 # Constructor for ProtData class
@@ -60,12 +57,6 @@ create_protdata <- function(dat, condition = NULL, method = "Unknown") {
   #   dplyr::slice(which.max(median)) %>%
   #   dplyr::ungroup() %>%
   #   dplyr::select(-c(missing_value, median))
-
-  dat.long <- melt_intensity_table(dat)
-  dat.long <- dat.long[rowSums(is.na(dat.long)) < ncol(dat.long),]
-  #dat.long <- dat.long[! is.na(Intensity)][Intensity != 0]
-  #filter intensity
-  #dat.long <- dat.long[Intensity > opt$minintensity]
 
   #Split up numeric (intensity) and non-numeric (protein metadata) into seperate dataframes
   prot_meta <- as.data.frame(dat[, !sapply(dat, is.numeric)])
@@ -116,10 +107,9 @@ create_protdata <- function(dat, condition = NULL, method = "Unknown") {
 
   # Create a new ProtData object
   new("ProtData",
-      data = data.table::as.data.table(data),
-      data.long = dat.long,
+      data = data,
       condition = condition,
-      prot_meta = data.table::as.data.table(prot_meta),
+      prot_meta = prot_meta,
       method = method)
 }
 
@@ -214,84 +204,13 @@ setMethod("setProtMethod",
             return(object)
           })
 
-####### Class Methods ###############################################################
+####### Simple Class Methods ###############################################################
 
-setGeneric("removeOutliers", function(object, sds = 3) standardGeneric("removeOutliers"))
-#' Title
-#'
-#' @param ProtData
-#'
-#' @return
-#' @export
-#'
-#' @examples
-setMethod("removeOutliers",
-          "ProtData",
-          function(object, sds = 3){
-            pgcounts <- data.table::as.data.table(table(getDataLong(object)$Sample))
-            colnames(pgcounts) <- c("Sample", "N")
-            pgcounts <<- pgcounts
+setGeneric("num_samples", function(object) standardGeneric("num_samples"))
+setMethod("num_samples", "ProtData", function(object) {
+  return(as.numeric(ncol(object@data)))
+})
 
-            dat <- object@data
-            dat.long <- object@data.long
-            cond <- object@condition
-
-            stdev <- sd(pgcounts[,'N'])
-            mean_count <- mean(pgcounts[,'N'])
-            min_protein_groups <- floor(mean_count - (sds * stdev))
-            max_protein_groups <- ceiling(mean_count + (sds * stdev))
-            cat(paste0('INFO: Tolerating protein group counts in the range [', min_protein_groups,',',max_protein_groups,']\n'))
-            low_count_samples <- as.character(pgcounts[pgcounts$N < min_protein_groups, 'Sample'])
-            if(length(low_count_samples)>0){
-              print("removing the following samples with low protein counts:")
-              print(low_count_samples)
-            }
-            high_count_samples <- as.character(pgcounts[pgcounts$N > max_protein_groups, 'Sample'])
-            if(length(high_count_samples)>0){
-              print("removing the following samples with high protein counts:")
-              print(high_count_samples)
-            }
-
-            outliers <- c(low_count_samples, high_count_samples)
-            if (length(outliers) >0){
-              dat <- dat[,!(colnames(dat) %in% outliers),drop = FALSE]
-              dat.long <- dat.long[!dat.long$Sample %in% outliers, ,drop = FALSE]
-              cond <- cond[!rownames(cond) %in% outliers, ,drop = FALSE]
-
-              object@data <- dat
-              object@data.long <- dat.long
-              object@condition <- cond
-            }
-            return(object)
-          }
-      )
-
-setGeneric("removeSample", function(object, samples) standardGeneric("removeSample"))
-#' Title
-#'
-#' @param ProtData
-#'
-#' @return
-#' @export
-#'
-#' @examples
-setMethod("removeSample",
-          "ProtData",
-          function(object, samples){
-            dat <- object@data
-            dat.long <- object@data.long
-            cond <- object@condition
-
-            dat <- dat[,!(colnames(dat) %in% samples),drop = FALSE]
-            dat.long <- dat.long[!dat.long$Sample %in% samples, ,drop = FALSE]
-            cond <- cond[!rownames(cond) %in% samples, ,drop = FALSE]
-
-            object@data <- dat
-            object@data.long <- dat.long
-            object@condition <- cond
-            return(object)
-          }
-)
 
 
 ######## HELPER FUNCTIONS ####################################################################
