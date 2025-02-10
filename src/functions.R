@@ -1327,8 +1327,10 @@ psilac_standardize_format = function(DT) {
   }
   DT=as.data.frame(DT)
   DT=DT[,grep('Protein_Group|Genes|Channel|Peptide_Sequence|Precursor',colnames(DT))]
+  #as number
+  DT[,grep('raw',colnames(DT))]=as.data.frame(apply(DT[,grep('raw',colnames(DT))],2,as.numeric))
   # Remove trailing file extensions
-  extensions = '.mzML$|.mzml$|.RAW$|.raw$|.dia$|.DIA$|_Intensity|raw.PG.MS2|DIA_|raw.PEP.MS2|raw.EG.TargetReference| \\([^()]*\\)'
+  extensions = '.mzML$|.mzml$|.RAW$|.raw$|.dia$|.DIA$|_Intensity|raw.PG.MS2|raw.EG.|Quantity|DIA_|raw.PEP.MS2|raw.EG.TargetReference| \\([^()]*\\)'
   extension_samplenames =  colnames(DT)[colnames(DT) %like% extensions]
   trimmed_samplenames = gsub(extensions, '', extension_samplenames)
   setnames(DT, extension_samplenames, trimmed_samplenames)
@@ -1530,19 +1532,61 @@ psilac_umap <- function(DT, output_dir, output_filename) {
 
 ##Caculate the remaining light peptide by L/(L+H)
 #Rate of loss of the light isotope (kLoss) by modeling the relative isotope abundance (RIA)
-L_remain_channel=function(DT,output_dir,output_filename){
+L_remain_channel=function(DT,design_matrix,output_dir,output_filename){
   DT=data.frame(DT)
   #na as 0
   DT_0=DT
   DT_0[is.na(DT_0)]=0
   #use the Channel to calculate the RIA
-  DT_RIA=DT_0[grep('Channel1',colnames(DT_0),value = T)]/
-    (DT_0[grep('Channel1',colnames(DT_0),value = T)]+DT_0[grep('Channel3',colnames(DT_0),value = T)])
+  DT_RIA=DT_0[,grep('Channel1',colnames(DT_0),value = T)]/
+    (DT_0[,grep('Channel1',colnames(DT_0),value = T)]+DT_0[,grep('Channel2',colnames(DT_0),value = T)])
   DT_RIA=cbind(DT_0[,-grep('Channel|Ratio',colnames(DT_0))],DT_RIA)
   colnames(DT_RIA)=gsub('Channel1','RIA',colnames(DT_RIA))
+  colnames(DT_RIA)=gsub('.Channel1','',colnames(DT_RIA))
   #write csv for RIA ratio
   ezwrite(DT_RIA, output_dir, paste0(output_filename,'.tsv'))
   return(DT_RIA)
+  #filter
+  DT_RIA_filter=data.frame()
+  for (condition in unique(design_matrix$condition)) {
+    DT_RIA_condition <- DT_RIA[, !(colnames(DT_RIA) %in% design_matrix$sample[design_matrix$condition != condition])]
+    DT_RIA_condition_long=melt(DT_RIA_condition,
+                               variable.name = 'sample',
+                               value.name ='intensity' )
+    DT_RIA_condition_long =DT_RIA_condition_long%>%
+      left_join(design[design$condition==condition,], by = "sample") 
+    DT_mean <- DT_RIA_condition_long %>%
+      group_by(Precursor, timepoint) %>%  
+      summarize(mean_intensity = mean(intensity, na.rm = TRUE), .groups = 'drop')
+    
+    # Function to check for continuous decay
+    is_continuous_decay <- function(x) {
+      all(diff(x) <= 0)  # Check if each timepoint decreases or stays the same
+    }
+    
+    # Filter out precursors that do not show a continuous decay
+    DT_filtered <- DT_mean %>%
+      group_by(Precursor) %>%
+      filter(!(any(timepoint == 0 & mean_intensity < 0.9))) %>%  # Remove all rows for Precursor if timepoint 0 < 0.9
+      filter(is_continuous_decay(mean_intensity)) %>%  # Apply continuous decay filter
+      ungroup()
+    DT_RIA_condition_filter=DT_RIA_condition[DT_RIA_condition$Precursor %in%DT_filtered$Precursor, ]
+    ezwrite(DT_RIA_condition_filter, output_dir, paste0(output_filename,'_',condition,'.tsv'))
+    if (nrow(DT_RIA_filter) == 0) {
+      DT_RIA_filter=DT_RIA_condition_filter
+    }else{
+      DT_RIA_filter=merge(DT_RIA_filter,DT_RIA_condition_filter,by='Precursor',all=T)
+      # Remove duplicated column suffixes
+      DT_RIA_filter <- DT_RIA_filter %>%
+        mutate(across(ends_with(".x"), ~ coalesce(.x, get(sub(".x$", ".y", cur_column()))))) %>%  # Fill NA in .x with corresponding .y
+        select(!ends_with(".y")) %>%  # Remove all ".y" columns
+        rename_with(~ gsub("\\.x$", "", .x))  # Remove ".x" suffix from column names
+    }
+  }
+  if (length(unique(design_matrix$condition))>1) {
+    ezwrite(DT_RIA_filter, output_dir, paste0(output_filename,'_filter.tsv'))
+  }
+  return(DT_RIA_filter)
 }
 
 H_remain_channel=function(DT,output_dir,output_filename){
