@@ -21,7 +21,7 @@ test_that("correctly make a prot_data object from DIANN input", {
 test_that("correctly make a prot_data object from DIANN input and condition file", {
   df <- data.table::fread("~/OneDrive - National Institutes of Health/projects/SLAM/Heart/report.PG_matrix.tsv")
   meta <- data.table::fread("~/OneDrive - National Institutes of Health/projects/SLAM/Heart/metadata.csv")
-  dat_pro <<- create_protdata(df)
+  dat_pro <<- create_protdata(df, meta)
   expect_s4_class(dat_pro, "ProtData")
 
   df1 <- data.table::fread("~/OneDrive - National Institutes of Health/projects/SLAM/Muscle/report.PG_matrix.tsv")

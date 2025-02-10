@@ -13,3 +13,6 @@ Differential_Intensity/
 .local/
 .keras/
 .Rproj.user
+
+#Ignore unpublished example data
+EXAMPLES/SILAC/pSILAC_CARD_Challenge_Report.tsv

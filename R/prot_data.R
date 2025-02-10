@@ -31,12 +31,13 @@ setClass("ProtData",
 #'
 #' @return An instance of the ProtData class.
 #' @export
-create_protdata <- function(dat, condition = NULL, method = "Unknown") {
+create_protdata <- function(dat, intensity_cols, condition = NULL, method = "Unknown") {
 
   # Check that data is a data frame
   if (!is.data.frame(dat)) {
     stop("The 'data' argument must be a data frame.")
   }
+
 
   #standardize the column names and order
   #dat <- standardize_format(data)
@@ -58,9 +59,11 @@ create_protdata <- function(dat, condition = NULL, method = "Unknown") {
   #   dplyr::ungroup() %>%
   #   dplyr::select(-c(missing_value, median))
 
-  #Split up numeric (intensity) and non-numeric (protein metadata) into seperate dataframes
-  prot_meta <- as.data.frame(dat[, !sapply(dat, is.numeric)])
-  data <- as.data.frame(dat[, sapply(dat, is.numeric)])
+  #Split up intensity and non-numeric protein metadata into seperate dataframes
+  prot_meta <- as.data.frame(dat[, -intensity_cols])
+  data <- as.data.frame(dat[, intensity_cols])
+  data <- data %>%
+    dplyr::mutate(dplyr::across(dplyr::everything(), ~ as.numeric(.)))
 
   ## CONDITION FILE ###################
 
@@ -279,7 +282,7 @@ trim_colnames <- function(DT) {
   colnames_out <- gsub(pattern="\\..*\\.PG\\.Quantity|\\.PG\\.Quantity|\\..*Quantity.*", replacement='', x=colnames_out)   # remove suffix
   # Remove everything before the last "/" and remove extensions like .raw or .mzml
   colnames_out <- gsub(pattern=".*/", replacement='', x=colnames_out)
-  colnames_out <- gsub(pattern="\\.(raw|mzML)$", replacement='', x=colnames_out)
+  colnames_out <<- gsub(pattern="\\.(raw|mzML)$", replacement='', x=colnames_out)
   return(colnames_out)
 }
 
