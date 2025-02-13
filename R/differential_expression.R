@@ -85,24 +85,6 @@ do_Ttest <- function(protdata, baseCondition, control, treatment, lfc_threshold,
 }
 
 
-
-# Example call
-results <- do_Ttest(
-  protdata = testing,
-  baseCondition = "base_condition",
-  control = "Day0",
-  treatment = "Day28",
-  lfc_threshold = 1, 
-  fdr_threshold = 0.05
-)
-
-
-
-library(ggplot2)
-library(ggrepel)
-library(dplyr)
-library(data.table)
-
 plot_volcano <- function(DT.original, 
                          out_dir = "./", 
                          output_filename = "volcano_plot", 
