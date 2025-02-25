@@ -97,7 +97,7 @@ else
 fi
 
 #### CHECK PWIZ_SANDBOX ############################################################################
-URL='https://onedrive.live.com/download?cid=77DD71E598E5B51B&resid=77DD71E598E5B51B%2124988&authkey=AFC4xp1k-1JhHEk'
+URL='https://zenodo.org/records/14927397/files/pwiz_sandbox.tar.gz?download=1'
 
 
 if [ -d src/pwiz_sandbox ]; then
