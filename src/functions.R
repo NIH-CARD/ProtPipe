@@ -1541,11 +1541,9 @@ L_remain_channel=function(DT,design_matrix,output_dir,output_filename){
   DT_RIA=DT_0[,grep('Channel1',colnames(DT_0),value = T)]/
     (DT_0[,grep('Channel1',colnames(DT_0),value = T)]+DT_0[,grep('Channel2',colnames(DT_0),value = T)])
   DT_RIA=cbind(DT_0[,-grep('Channel|Ratio',colnames(DT_0))],DT_RIA)
-  colnames(DT_RIA)=gsub('Channel1','RIA',colnames(DT_RIA))
   colnames(DT_RIA)=gsub('.Channel1','',colnames(DT_RIA))
   #write csv for RIA ratio
   ezwrite(DT_RIA, output_dir, paste0(output_filename,'.tsv'))
-  return(DT_RIA)
   #filter
   DT_RIA_filter=data.frame()
   for (condition in unique(design_matrix$condition)) {

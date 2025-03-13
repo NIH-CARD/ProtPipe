@@ -69,6 +69,13 @@ create_protdata <- function(dat, intensity_cols, condition = NULL, method = "Unk
 
   # Ensure that condition, if provided, has rownames matching the colnames of data
   if (!is.null(condition)) {
+    # make sample col the rownames if it exists
+    if ("sample" %in% colnames(condition)) {
+      rownames(condition) <- condition$sample
+      condition$sample <- NULL
+    }
+
+    # drop excess rows from the condition file if they exist
     if (!all(rownames(condition) %in% colnames(data))) {
       print("Rownames of 'condition' do not match the colnames of 'data'.")
 
@@ -86,8 +93,8 @@ create_protdata <- function(dat, intensity_cols, condition = NULL, method = "Unk
       missing_cols <- setdiff(colnames(data), rownames(condition))
 
       # Create rows with NA for the missing columns and add them to 'condition'
-      missing_rows <- data.table(matrix(NA, nrow = length(missing_cols), ncol = ncol(condition)))
-      setnames(missing_rows, names(condition))
+      missing_rows <- data.frame(matrix(NA, nrow = length(missing_cols), ncol = ncol(condition)))
+      colnames(missing_rows) <- names(condition)
       rownames(missing_rows) <- missing_cols
 
       # Add missing rows to 'condition'
@@ -282,7 +289,7 @@ trim_colnames <- function(DT) {
   colnames_out <- gsub(pattern="\\..*\\.PG\\.Quantity|\\.PG\\.Quantity|\\..*Quantity.*", replacement='', x=colnames_out)   # remove suffix
   # Remove everything before the last "/" and remove extensions like .raw or .mzml
   colnames_out <- gsub(pattern=".*/", replacement='', x=colnames_out)
-  colnames_out <<- gsub(pattern="\\.(raw|mzML)$", replacement='', x=colnames_out)
+  colnames_out <- gsub(pattern="\\.(raw|mzML)$", replacement='', x=colnames_out)
   return(colnames_out)
 }
 

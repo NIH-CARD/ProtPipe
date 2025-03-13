@@ -13,13 +13,11 @@ create_protdata_from_soma <- function(adat, condition = NULL, filter = TRUE) {
   }else{
     dat <- soma_sample_out(adat)
   }
-
-  return(create_protdata(dat, condition, method = "SomaScan"))
+  return(create_protdata(dat, intensity_cols = c(7:length(colnames(dat))), condition, method = "SomaScan"))
 }
 
 
 soma_sample_out=function(DT){
-  annoaa <<- SomaDataIO::getAnalyteInfo(DT)
   anno <- SomaDataIO::getAnalyteInfo(DT)%>%
     dplyr::filter(Organism == "Human") %>%
     dplyr::filter(Type == "Protein")
@@ -93,7 +91,7 @@ soma_all_output=function(DT){
 
 Buffer_filter=function(DT){
   DT=as.data.frame(DT)
-  DT_filter <<- DT %>%
+  DT_filter <- DT %>%
     dplyr::mutate(across(
       .cols = -c(Protein_Group, Genes, Buffer,Calibrator),  # Exclude PG_group, genes, and Buffer
       .fns = ~ ifelse(. < Buffer, NA, .)  # Apply the condition
