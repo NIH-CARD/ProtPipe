@@ -214,12 +214,50 @@ setMethod("setProtMethod",
             return(object)
           })
 
-####### Simple Class Methods ###############################################################
+####### Some Class Methods ###############################################################
 
 setGeneric("num_samples", function(object) standardGeneric("num_samples"))
 setMethod("num_samples", "ProtData", function(object) {
   return(as.numeric(ncol(object@data)))
 })
+
+setGeneric("log2_transform", function(object) standardGeneric("log2_transform"))
+setMethod("log2_transform", "ProtData", function(object) {
+  object@data <- object@data %>%
+    dplyr::mutate(across(where(is.numeric), ~ ifelse(!is.na(.) & !is.nan(.), log2(.), .)))
+  return(object)
+})
+
+#' Title
+#'
+#' @param object
+#'
+#' @return
+#' @export
+#'
+#' @examples
+setGeneric("scale", function(object) standardGeneric("scale"))
+setMethod("scale", "ProtData", function(object) {
+  object@data <- t(base::scale(t(object@data)))%>%
+    as.data.frame()
+  return(object)
+})
+
+setGeneric("impute", function(object, value) standardGeneric("impute"))
+setMethod("impute", "ProtData", function(object, value) {
+  object@data <- object@data %>%
+    mutate(across(where(is.numeric), ~ ifelse(is.na(.) | is.nan(.), value, .)))
+  return(object)
+})
+
+setGeneric("batch_correct", function(object, col) standardGeneric("batch_correct"))
+setMethod("batch_correct", "ProtData", function(object, col) {
+  object@data <- object@data %>%
+    limma::removeBatchEffect(batch = object@condition[[col]]) %>%
+    as.data.frame()
+  return(object)
+})
+
 
 
 

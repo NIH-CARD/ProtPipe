@@ -8,19 +8,20 @@
 #'
 #' @examples
 get_PCs <- function(PD, condition = NA) {
-  DT <- getData(PD)
+  log2_cluster_data <- getData(PD) %>%
+    dplyr::filter(rowSums(.) > 0)
   out <- list()
   ##cluster data(na=0)
-  cluster_data <- DT %>%
-    dplyr::select_if(is.numeric) %>%
-    # Replace NA values with 0
-    dplyr::mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
-    # Filter rows where the sum of numeric values is greater than 0
-    dplyr::filter(rowSums(.) > 0)
-
-  # Apply log2 transformation
-  log2_cluster_data <- cluster_data %>%
-    dplyr::mutate(across(everything(), ~ log2(. + 1)))
+  # cluster_data <- DT %>%
+  #   dplyr::select_if(is.numeric) %>%
+  #   # Replace NA values with 0
+  #   dplyr::mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
+  #   # Filter rows where the sum of numeric values is greater than 0
+  #   dplyr::filter(rowSums(.) > 0)
+  #
+  # # Apply log2 transformation
+  # log2_cluster_data <- cluster_data %>%
+  #   dplyr::mutate(across(everything(), ~ log2(. + 1)))
 
   ##PCA and plot
   pca_data <- t(log2_cluster_data)

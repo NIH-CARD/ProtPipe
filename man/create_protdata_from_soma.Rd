@@ -4,7 +4,7 @@
 \alias{create_protdata_from_soma}
 \title{A protData contructor for SomaScan Data}
 \usage{
-create_protdata_from_soma(adat, condition = NULL)
+create_protdata_from_soma(adat, condition = NULL, filter = TRUE)
 }
 \arguments{
 \item{adat}{}
