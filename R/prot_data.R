@@ -221,6 +221,14 @@ setMethod("num_samples", "ProtData", function(object) {
   return(as.numeric(ncol(object@data)))
 })
 
+#' Title
+#'
+#' @param object
+#'
+#' @return
+#' @export
+#'
+#' @examples
 setGeneric("log2_transform", function(object) standardGeneric("log2_transform"))
 setMethod("log2_transform", "ProtData", function(object) {
   object@data <- object@data %>%
@@ -243,6 +251,15 @@ setMethod("scale", "ProtData", function(object) {
   return(object)
 })
 
+#' Title
+#'
+#' @param object
+#' @param value
+#'
+#' @return
+#' @export
+#'
+#' @examples
 setGeneric("impute", function(object, value) standardGeneric("impute"))
 setMethod("impute", "ProtData", function(object, value) {
   object@data <- object@data %>%
@@ -250,6 +267,15 @@ setMethod("impute", "ProtData", function(object, value) {
   return(object)
 })
 
+#' Title
+#'
+#' @param object
+#' @param col
+#'
+#' @return
+#' @export
+#'
+#' @examples
 setGeneric("batch_correct", function(object, col) standardGeneric("batch_correct"))
 setMethod("batch_correct", "ProtData", function(object, col) {
   object@data <- object@data %>%
