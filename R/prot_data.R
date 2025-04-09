@@ -240,7 +240,7 @@ setMethod("num_samples", "ProtData", function(object) {
 setGeneric("log2_transform", function(object) standardGeneric("log2_transform"))
 setMethod("log2_transform", "ProtData", function(object) {
   object@data <- object@data %>%
-    dplyr::mutate(across(where(is.numeric), ~ ifelse(!is.na(.) & !is.nan(.), log2(.), .)))
+    dplyr::mutate(across(where(is.numeric), ~ ifelse(!is.na(.) & !is.nan(.), log2(.+1), .)))
   return(object)
 })
 
@@ -255,7 +255,7 @@ setMethod("log2_transform", "ProtData", function(object) {
 setGeneric("log_transform", function(object) standardGeneric("log_transform"))
 setMethod("log_transform", "ProtData", function(object) {
   object@data <- object@data %>%
-    dplyr::mutate(across(where(is.numeric), ~ ifelse(!is.na(.) & !is.nan(.), log(.), .)))
+    dplyr::mutate(across(where(is.numeric), ~ ifelse(!is.na(.) & !is.nan(.), log(.+1), .)))
   return(object)
 })
 
