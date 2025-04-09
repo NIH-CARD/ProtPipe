@@ -216,6 +216,14 @@ setMethod("setProtMethod",
 
 ####### Some Class Methods ###############################################################
 
+#' Title
+#'
+#' @param object
+#'
+#' @return
+#' @export
+#'
+#' @examples
 setGeneric("num_samples", function(object) standardGeneric("num_samples"))
 setMethod("num_samples", "ProtData", function(object) {
   return(as.numeric(ncol(object@data)))
@@ -244,9 +252,40 @@ setMethod("log2_transform", "ProtData", function(object) {
 #' @export
 #'
 #' @examples
+setGeneric("log_transform", function(object) standardGeneric("log_transform"))
+setMethod("log_transform", "ProtData", function(object) {
+  object@data <- object@data %>%
+    dplyr::mutate(across(where(is.numeric), ~ ifelse(!is.na(.) & !is.nan(.), log(.), .)))
+  return(object)
+})
+
+#' Title
+#'
+#' @param object
+#'
+#' @return
+#' @export
+#'
+#' @examples
 setGeneric("scale", function(object) standardGeneric("scale"))
 setMethod("scale", "ProtData", function(object) {
   object@data <- t(base::scale(t(object@data)))%>%
+    as.data.frame()
+  return(object)
+})
+
+
+#' Title
+#'
+#' @param object
+#'
+#' @return
+#' @export
+#'
+#' @examples
+setGeneric("median_normalize", function(object) standardGeneric("median_normalize"))
+setMethod("median_normalize", "ProtData", function(object) {
+  object@data <- t(apply(object@data, 1, function(x) x / median(x, na.rm = TRUE))) %>%
     as.data.frame()
   return(object)
 })
@@ -264,6 +303,26 @@ setGeneric("impute", function(object, value) standardGeneric("impute"))
 setMethod("impute", "ProtData", function(object, value) {
   object@data <- object@data %>%
     mutate(across(where(is.numeric), ~ ifelse(is.na(.) | is.nan(.), value, .)))
+  return(object)
+})
+
+
+#' Title
+#'
+#' @param object
+#' @param value
+#'
+#' @return
+#' @export
+#'
+#' @examples
+setGeneric("impute_min", function(object, value) standardGeneric("impute_min"))
+setMethod("impute_min", "ProtData", function(object, value) {
+  object@data <- t(apply(object@data, 1, function(x) {
+    min_val <- min(x[!is.na(x) & !is.nan(x)], na.rm = TRUE)  # find the minimum value excluding NA and NaN
+    x[is.na(x) | is.nan(x)] <- min_val  # replace NA and NaN with the minimum value
+    return(x)
+  })) %>% as.data.frame()
   return(object)
 })
 
