@@ -343,6 +343,46 @@ setMethod("batch_correct", "ProtData", function(object, col) {
   return(object)
 })
 
+#' Title
+#'
+#' @param object
+#' @param col
+#'
+#' @return
+#' @export
+#'
+#' @examples
+setGeneric("unique_data", function(object, col = NULL) standardGeneric("unique_data"))
+setMethod("unique_data", "ProtData", function(object, col = NULL) {
+  if (is.null(col)) {
+    col <- colnames(object@prot_meta)[1]
+  }
+  intensity_cols <<- 1:ncol(object@data)
+
+  dataa <<- object@data %>%
+    as.data.frame() %>% # Ensure it's a dataframe for dplyr
+    dplyr::mutate(missing_value = rowSums(is.na(dplyr::select(., all_of(intensity_cols))))) %>%
+    dplyr::mutate(median = matrixStats::rowMedians(as.matrix(dplyr::select(., all_of(intensity_cols))), na.rm = TRUE))
+
+  # Combine data and metadata directly
+  dat <- cbind(object@data, object@prot_meta) %>%
+    as.data.frame() %>% # Ensure it's a dataframe for dplyr
+    dplyr::mutate(missing_value = rowSums(is.na(dplyr::select(., all_of(intensity_cols))))) %>%
+    dplyr::mutate(median = matrixStats::rowMedians(as.matrix(dplyr::select(., all_of(intensity_cols))), na.rm = TRUE)) %>%
+    dplyr::group_by(!!as.name(col)) %>%
+    dplyr::filter(missing_value == min(missing_value)) %>%
+    dplyr::filter(median == max(median)) %>%
+    dplyr::ungroup()
+
+  # Separate back into data and metadata
+  object@data <- dplyr::select(dat, all_of(intensity_cols))
+  metadata_start_col <- length(intensity_cols) + 1
+  metadata_end_col <- ncol(dat) - 2 # Subtract the two new columns (missing_value, median)
+  object@prot_meta <- dplyr::select(dat, metadata_start_col:metadata_end_col)
+
+  return(object)
+})
+
 
 
 
