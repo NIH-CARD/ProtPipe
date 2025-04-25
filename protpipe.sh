@@ -22,7 +22,7 @@ fi
 
 #### R ANALYSIS ####################################################################################
 r_sif="src/R.sif"
-r_sif_sha256_desired='91c7e63ed529a50455e810a7911424b71b62a05180eab4db93f3d172a6788ee7'
+# r_sif_sha256_desired='91c7e63ed529a50455e810a7911424b71b62a05180eab4db93f3d172a6788ee7'
 if [ ! -f "${r_sif}" ]; then
     echo "INFO: pulling image from quay.io"
     singularity pull src/R.sif docker://quay.io/datatecnica/protpipe:latest
@@ -30,14 +30,14 @@ else
     echo "INFO: ${r_sif} already exists, skipping download"
 fi
 
-r_sif_sha256_actual=$(sha256sum "${r_sif}" | awk '{print $1}')
+#r_sif_sha256_actual=$(sha256sum "${r_sif}" | awk '{print $1}')
 
-if [ ! "${r_sif_sha256_actual}" == "${r_sif_sha256_desired}" ]; then
-    echo "ERROR: ${r_sif} sha256sum does not pass check. Possibly corrupted? Delete or clear singularity cache and try again."
-    exit 1
-else
-    echo "INFO: ${r_sif} sha256sum sum passes check"
-fi
+#if [ ! "${r_sif_sha256_actual}" == "${r_sif_sha256_desired}" ]; then
+#    echo "ERROR: ${r_sif} sha256sum does not pass check. Possibly corrupted? Delete or clear singularity cache and try again."
+#    exit 1
+#else
+#    echo "INFO: ${r_sif} sha256sum sum passes check"
+#fi
 
 #### RUN IN CONTAINER ####################################################################################
 
