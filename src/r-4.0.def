@@ -1,0 +1,80 @@
+BootStrap: docker
+From: ubuntu:focal
+
+%post
+    apt-get -y update && DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y \
+        dirmngr \
+        gnupg \
+        wget \
+        apt-transport-https \
+        ca-certificates \
+        software-properties-common \
+        gcc \
+        make \
+        libbz2-dev \
+        zlib1g-dev \
+        libncurses5-dev  \
+        libncursesw5-dev \
+        liblzma-dev \
+        tabix \
+        imagemagick \
+        libmagick++-dev
+
+
+    # Add necessary keys and repo for installing R 4.0 on ubuntu 20
+    apt -y update
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
+    add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/'
+
+    apt-get -y update && DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y \
+        r-base \
+        r-base-core \
+        r-recommended \
+        r-base-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        g++ \
+        curl \
+        libxml2 \
+        libxml2-dev \
+        xauth
+    
+    # exclude DESeq2 apeglm
+
+    R --no-echo -e "install.packages('data.table', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('R.utils', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('ggplot2', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('foreach', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('doMC', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('ggthemes', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('ggrepel', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('optparse', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('umap', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('corrplot', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('reshape2', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('magick', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('ggbeeswarm', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('ggdendro', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('ecodist', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('eulerr', repos='http://cran.us.r-project.org')"
+    R --no-echo -e "install.packages('BiocManager')"
+    R --no-echo -e "BiocManager::install('org.Hs.eg.db')"
+    R --no-echo -e "BiocManager::install('clusterProfiler')"
+    R --no-echo -e "BiocManager::install('STRINGdb')"
+    
+    # Install python3.8 and pip3
+    apt-get clean
+    apt-get update
+    apt-get install -y python3.8 python3-pip
+
+    # Install mhcflurry
+    pip3 install mhcflurry
+    pip3 install tensorflow
+
+    # end noninteractive install
+    unset DEBIAN_FRONTEND
+
+%runscript
+    eval ${@}

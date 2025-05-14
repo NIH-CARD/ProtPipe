@@ -1,0 +1,51 @@
+## Arguments requiring values
+--out                   output/report.tsv
+--f                     example/raw/HREC_ETIS_1.mzML
+--f                     example/raw/HREC_ETIS_2.mzML
+--f                     example/raw/HREC_ETIS_3.mzML
+--f                     example/raw/HREC_ETIS_4.mzML
+--f                     example/raw/HREC_IRIS_1.mzML
+--f                     example/raw/HREC_IRIS_2.mzML
+--f                     example/raw/HREC_IRIS_3.mzML
+--f                     example/raw/HREC_IRIS_4.mzML
+--f                     example/raw/HREC_P_1.mzML
+--f                     example/raw/HREC_P_2.mzML
+--f                     example/raw/HREC_P_3.mzML
+--f                     example/raw/HREC_P_4.mzML
+--fasta                 example/uniprot-proteome_Human_UP000005640_20191105.fasta
+--lib                   dnd.speclib
+--threads               4
+--qvalue                0.01
+--min-fr-mz             200
+--max-fr-mz             2000
+--cut                   K*,R*
+--missed-cleavages      2
+--min-pep-len           7
+--max-pep-len           25
+--min-pr-mz             300
+--max-pr-mz             1800
+--min-pr-charge         2
+--max-pr-charge         4
+--var-mods              5
+--var-mod               UniMod:35,15.994915,M
+--var-mod               UniMod:1,42.010565,*n
+--monitor-mod           UniMod:1
+
+## Options here will be used. To disable, either comment out, delete, or move to below seection
+--matrices
+--smart-profiling
+--peak-center
+--no-ifs-removal
+--met-excision
+--relaxed-prot-inf
+
+
+
+IGNORE ## Any options below this line will be ignored
+--dir example/raw/
+--reannotate
+--use-quant
+--fasta-search
+--gen-spec-lib
+--predictor
+--reanalyse
