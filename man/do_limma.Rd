@@ -2,19 +2,37 @@
 % Please edit documentation in R/differential_expression.R
 \name{do_limma}
 \alias{do_limma}
-\title{do_limma() takes in a protData object, the column names of the treatment group and control group.
-The function first removes features (proteins) that are found in less than 50\% of control and treatment
-samples. Returns a dataframe with the protein metadata, intensity values for the control and treatment groups,
-the logfc and pvalue/adjusted pvalue.}
+\alias{do_limma,ProtData-method}
+\title{Perform limma differential expression on a ProtData object}
 \usage{
 do_limma(object, treatment_samples, control_samples, meta_col)
+
+\S4method{do_limma}{ProtData}(object, treatment_samples, control_samples)
 }
 \arguments{
-\item{object}{}
+\item{object}{A \code{ProtData} object containing protein intensities, metadata, and condition info.}
+
+\item{treatment_samples}{Character vector of column names representing treatment samples.}
+
+\item{control_samples}{Character vector of column names representing control samples.}
+}
+\value{
+A data frame containing filtered proteins with metadata, intensity values, log fold change,
+p-value, and adjusted p-value.
 }
 \description{
-do_limma() takes in a protData object, the column names of the treatment group and control group.
-The function first removes features (proteins) that are found in less than 50\% of control and treatment
-samples. Returns a dataframe with the protein metadata, intensity values for the control and treatment groups,
-the logfc and pvalue/adjusted pvalue.
+This function takes a \code{ProtData} object and two vectors containing the column names
+of the treatment and control samples. It filters out proteins found in fewer than 50\%
+of samples, performs a limma-based differential expression analysis, and returns
+a data frame with metadata, intensities, log fold changes, and p-values.
+}
+\section{Methods (by class)}{
+\itemize{
+\item \code{do_limma(ProtData)}: Method for ProtData objects
+
+}}
+\examples{
+\dontrun{
+result <- do_limma(my_protdata, treatment_samples = c("T1", "T2"), control_samples = c("C1", "C2"))
+}
 }

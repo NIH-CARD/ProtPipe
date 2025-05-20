@@ -11,6 +11,14 @@
 setGeneric("do_t_test", function(object, treatment_samples, control_samples, meta_col) standardGeneric("do_t_test"))
 
 
+#' Title
+#'
+#' @param ProtData
+#'
+#' @return
+#' @export
+#'
+#' @examples
 setMethod("do_t_test", "ProtData", function(object, treatment_samples, control_samples) {
 
   col <- names(object@prot_meta)
@@ -80,7 +88,10 @@ setMethod("do_t_test", "ProtData", function(object, treatment_samples, control_s
   return(result_ttest)
 })
 
+#' Helper function to filter out sparse proteins
 filter_features <- function(DT_limma, control_samples, treatment_samples, alpha){
+  n_treatment <- length(treatment_samples)
+  n_control <- length(control_samples)
   if (n_treatment>3&n_control>3) {
     # Drop rows (protein groups) with > 50% missingness in samples
     DT_limma$missing_value= apply(DT_limma, 1, function(x) sum(x==0))
@@ -105,20 +116,28 @@ filter_features <- function(DT_limma, control_samples, treatment_samples, alpha)
 }
 
 
-#' do_limma() takes in a protData object, the column names of the treatment group and control group.
-#' The function first removes features (proteins) that are found in less than 50% of control and treatment
-#' samples. Returns a dataframe with the protein metadata, intensity values for the control and treatment groups,
-#' the logfc and pvalue/adjusted pvalue.
+#' Perform limma differential expression on a ProtData object
 #'
-#' @param object
+#' This function takes a `ProtData` object and two vectors containing the column names
+#' of the treatment and control samples. It filters out proteins found in fewer than 50%
+#' of samples, performs a limma-based differential expression analysis, and returns
+#' a data frame with metadata, intensities, log fold changes, and p-values.
 #'
-#' @return
+#' @param object A `ProtData` object containing protein intensities, metadata, and condition info.
+#' @param treatment_samples Character vector of column names representing treatment samples.
+#' @param control_samples Character vector of column names representing control samples.
+#'
+#' @return A data frame containing filtered proteins with metadata, intensity values, log fold change,
+#' p-value, and adjusted p-value.
 #' @export
 #'
 #' @examples
-setGeneric("do_limma", function(object, treatment_samples, control_samples, meta_col) standardGeneric("do_limma"))
+#' \dontrun{
+#' result <- do_limma(my_protdata, treatment_samples = c("T1", "T2"), control_samples = c("C1", "C2"))
+#' }
+setGeneric("do_limma", function(object, treatment_samples, control_samples) standardGeneric("do_limma"))
 
-
+#' @describeIn do_limma Method for ProtData objects
 setMethod("do_limma", "ProtData", function(object, treatment_samples, control_samples) {
   #data
   meta_cols <- names(object@prot_meta)
@@ -166,18 +185,41 @@ setMethod("do_limma", "ProtData", function(object, treatment_samples, control_sa
 
 
 
-#' Title
+#' Plot a Volcano Plot for Differential Expression Results
 #'
-#' @param DT.original
-#' @param label_col
-#' @param lfc_threshold
-#' @param fdr_threshold
-#' @param labelgene
+#' This function generates a volcano plot based on log fold changes (logFC) and
+#' adjusted p-values from differential expression analysis. It highlights genes
+#' that pass the specified thresholds for logFC and FDR (false discovery rate).
+#' Optionally, it can label genes of interest or the top up/downregulated genes.
 #'
-#' @return
+#' @param DT.original A data frame containing the differential expression results.
+#'        It should have columns `logFC` (log fold change) and `adj.P.Val` (adjusted p-value).
+#' @param label_col The column name (as a string) used for labeling genes in the plot. Default is `NULL`.
+#'        If `NULL`, the function will select the first column of `DT.original` for labeling.
+#' @param lfc_threshold A numeric value representing the threshold for log fold change (default is 1).
+#'        Genes with logFC greater than or equal to this value are labeled as "UP",
+#'        and genes with logFC less than or equal to the negative of this value are labeled as "DOWN".
+#' @param fdr_threshold A numeric value representing the false discovery rate (FDR) threshold (default is 0.01).
+#'        Genes with an adjusted p-value greater than or equal to this threshold will be labeled as "Others".
+#' @param labelgene A character vector of gene names to be labeled in the plot (default is `NULL`).
+#'        If provided, only these genes will be labeled in the plot.
+#'
+#' @return A `ggplot2` object representing the volcano plot.
 #' @export
 #'
 #' @examples
+#' # Example data
+#' dt <- data.frame(
+#'   Gene = paste("Gene", 1:100),
+#'   logFC = rnorm(100),
+#'   adj.P.Val = runif(100)
+#' )
+#'
+#' # Plot volcano plot for the top genes
+#' plot_volcano(dt, label_col = "Gene", lfc_threshold = 1, fdr_threshold = 0.05)
+#'
+#' # Plot with specific gene labels
+#' plot_volcano(dt, label_col = "Gene", lfc_threshold = 1, fdr_threshold = 0.05, labelgene = c("Gene1", "Gene2"))
 plot_volcano <- function(DT.original, label_col = NULL, lfc_threshold=1, fdr_threshold=0.01, labelgene=NULL) {
   if(is.null(label_col)){
     label_col = names(DT.original)[1]
@@ -237,4 +279,6 @@ plot_volcano <- function(DT.original, label_col = NULL, lfc_threshold=1, fdr_thr
 
   return(g)
 }
+
+
 
