@@ -1,0 +1,56 @@
+Bootstrap: docker
+From: condaforge/miniforge3
+
+%environment
+    export LC_ALL=en_US.utf-8
+    export LANG=en_US.utf-8
+    export LANGUAGE=en_US.UTF-8
+    # Set BASH_ENV which points to init file loaded during non-interactive shell
+    export BASH_ENV=/opt/etc/bashrc
+    # Force loading of copied bashrc for interactive shell
+    source /opt/etc/bashrc
+
+%files
+    requirements.yml
+
+%post
+    # Ensure locales packages installed
+    apt-get -y update
+    apt-get install -y locales locales-all
+    apt-get -y install g++
+
+
+    # Create target dir for non-root-accessible bashrc
+    mkdir -p /opt/etc
+
+    # Define environment name. Doesn't really matter as it's auto-loaded regardless
+    ENVNAME='protpipe'
+
+    # Create environment using mamba
+    conda env create -f requirements.yml -p /opt/etc/${ENVNAME}
+    
+    # Install pip-dependent packages separately
+    #python -m pip install --use-pep517 adjusttext anndata annoy async-timeout attrs \
+    #bcbio-gff choreographer cramjam cykhash cython decoupler \
+    #dill fastparquet hmmlearn inflect kaleido legendkit \
+    #more-itertools multiprocess omnipath \
+    #plotnine polars pooch pydeseq2 pyfaidx rustworkx tbb tcmlib \
+    #tenacity texttable typeguard wrapt
+    
+    # Finalize bashrc file
+    echo "#! /usr/bin/env bash\n\n# script to activate the conda environment" > ~/.bashrc 
+    conda init bash
+    . ~/.bashrc
+    echo "echo \"Activating ${ENVNAME}\"" >>  ~/.bashrc
+    echo "\nconda activate /opt/etc/d${ENVNAME}" >> ~/.bashrc
+
+    
+    # Copy bashrc to non-root-accessible location
+    cp ~/.bashrc /opt/etc/bashrc
+    
+    # Install R packages not on bioconda
+    conda activate /opt/etc/${ENVNAME}
+    R --slave -e "install.packages('SomaDataIO', repos='http://cran.us.r-project.org')"
+
+# %runscript
+    exec /bin/bash "$@"
