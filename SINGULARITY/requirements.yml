@@ -1,0 +1,26 @@
+name: protpipe
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base
+  - r-ggplot2
+  - r-data.table
+  - r-corrplot
+  - r-umap
+  - r-magick
+  - r-ggdendro
+  - r-ecodist
+  - r-ggbeeswarm
+  - r-ggrepel
+  - r-ggthemes
+  - r-foreach
+  - r-reshape2
+  - r-pheatmap
+  - r-dplyr
+  - r-DescTools
+  - r-matrixStats
+  - bioconductor-clusterprofiler
+  - bioconductor-DOSE
+  - bioconductor-enrichplot
+  - bioconductor-limma

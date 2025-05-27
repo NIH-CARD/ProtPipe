@@ -1,0 +1,61 @@
+BootStrap: library
+From: ubuntu:22.04
+
+%files
+    requirements.yml
+
+%environment
+    export LC_ALL=en_US.utf-8
+    export LANG=en_US.utf-8
+    export LANGUAGE=en_US.UTF-8
+    # Set BASH_ENV which points to init file loaded during non-interactive shell
+    export BASH_ENV=/opt/etc/bashrc
+    export PATH="/opt/mamba/bin:$PATH"
+    # Force loading of copied bashrc for interactive shell
+    source /opt/etc/bashrc
+
+%post
+    # Create target dir for non-root-accessible bashrc
+    mkdir -p /opt/etc
+    mkdir -p /opt/conda
+
+    # Ensure locales packages installed
+    apt-get -y update
+    apt-get install -y locales locales-all
+    apt-get -y install g++
+    apt-get install -y wget
+
+    
+    #Install Mamba
+    readonly mamba_installer="Mambaforge-$(uname)-$(uname -m).sh"
+    readonly mamba_version="4.10.3-4"
+    readonly mamba_prefix="/opt/mamba"
+    wget "https://github.com/conda-forge/miniforge/releases/download/${mamba_version}/${mamba_installer}"
+    bash "${mamba_installer}" -b -p "${mamba_prefix}"
+    rm "${mamba_installer}"
+    export PATH="/opt/mamba/bin:$PATH"
+
+    # Create environment using mamba
+    ENVNAME="protpipe"
+    mamba env create -p /opt/etc/${ENVNAME} -f requirements.yml
+
+    # Finalize bashrc file
+    echo "#! /bin/bash\n\n# script to activate the conda environment" > ~/.bashrc 
+    mamba init bash && . /root/.bashrc
+    echo "echo \"Activating ${ENVNAME}\"" >>  ~/.bashrc
+    echo "\nmamba activate /opt/etc/${ENVNAME}" >> ~/.bashrc
+    
+    # Install R packages not on bioconda
+    mamba activate /opt/etc/${ENVNAME}
+    R --slave -e "install.packages('SomaDataIO', repos='http://cran.us.r-project.org')"
+
+
+    # Clean up installer files
+    conda clean -a
+
+    # Copy bashrc to non-root-accessible location
+    cp ~/.bashrc /opt/etc/bashrc
+    chmod -R 777 /opt
+
+# %runscript
+    exec /bin/bash "$@"
