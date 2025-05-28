@@ -12,8 +12,8 @@
 plot_pg_counts <- function(PD, condition = NULL) {
 
   # get the number of protein groups per sample
-  N_values <<- colSums(!is.na(getData(PD)))
-  pgcounts <<- data.frame(Sample = names(N_values), N = N_values)
+  N_values <- colSums(!is.na(getData(PD)))
+  pgcounts <- data.frame(Sample = names(N_values), N = N_values)
 
   # Order samples by ascending counts
   n_samples <- nrow(pgcounts)
@@ -93,6 +93,68 @@ plot_pg_intensities <- function(PD) {
 #' Title
 #'
 #' @param PD
+#' @param condition
+#' @param min_samples
+#'
+#' @return
+#' @export
+#'
+#' @examples
+plot_CVs <- function(PD, condition, min_samples = 2){
+  condition_file <- getCondition(PD)
+  if (!condition %in% colnames(condition_file)){
+    stop("the selected condition does not appear in the condition file")
+  }
+
+  intensities_t <- as.data.frame(t(PD@data))
+  intensities_t[[condition]] <- condition_file[[condition]]
+
+  # Split by condition
+  groups <- split(intensities_t, intensities_t[[condition]])
+
+  # Compute CVs per protein per group
+  cv_list <- lapply(names(groups), function(cond) {
+    group_data <- groups[[cond]][, !(colnames(groups[[cond]]) %in% condition), drop = FALSE]
+
+    if (nrow(group_data) < min_samples) {
+      return(NULL)  # Not enough samples
+    }
+
+    # CV per protein across samples in this group
+    cv_values <- apply(group_data, 2, function(x) {
+      if (all(is.na(x))) return(NA)
+      stats::sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)
+    })
+
+    data.frame(
+      Protein = names(cv_values),
+      CV = cv_values,
+      Condition = cond,
+      stringsAsFactors = FALSE
+    )
+  })
+
+  # Combine and filter
+  cv_df <- do.call(rbind, cv_list)
+  cv_df <- cv_df[!is.na(cv_df$CV), ]
+
+  # Plot
+  p <- ggplot2::ggplot(cv_df, ggplot2::aes(x = Condition, y = CV)) +
+    ggplot2::geom_violin(fill = "#67a9cf", color = "black", trim = FALSE) +
+    ggplot2::geom_boxplot(width = 0.1, outlier.shape = NA) +
+    ggplot2::geom_jitter(width = 0.15, alpha = 0.3, size = 0.5) +
+    ggplot2::theme_classic() +
+    ggplot2::labs(x = "", y = "Coefficient of Variation (CV)") +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90)) +
+    ggplot2::geom_hline(ggplot2::aes(yintercept = stats::quantile(cv_df$CV, 0.5, na.rm = TRUE)),
+                        color = "#ef8a62", linetype = "dashed")
+
+  return(p)
+}
+
+#' Title
+#'
+#' @param PD
 #' @param method
 #'
 #' @return
@@ -143,15 +205,15 @@ plot_correlation_heatmap <- function(PD, condition = NULL) {
       ggplot2::theme(axis.text.x=ggplot2::element_text(angle=45, hjust=1)) +
       ggplot2::theme(axis.title.x=ggplot2::element_blank(), axis.title.y=ggplot2::element_blank())
   }else{
-    condition_file <<- getCondition(PD)
+    condition_file <- getCondition(PD)
     if (condition %in% colnames(condition_file)){
       condition_map <- setNames(condition_file[[condition]], rownames(condition_file))
 
-      # Reorder the levels of SampleA and SampleB so that samples with the same condition appear together
-      # DT.corrs$SampleA <- factor(DT.corrs$SampleA, levels = names(condition_map)[order(condition_map[DT.corrs$SampleA])])
-      # DT.corrs$SampleB <- factor(DT.corrs$SampleB, levels = names(condition_map)[order(condition_map[DT.corrs$SampleB])])
+      #Reorder the levels of SampleA and SampleB so that samples with the same condition appear together
+      DT.corrs$SampleA <- factor(DT.corrs$SampleA, levels = names(condition_map)[order(condition_map[DT.corrs$SampleA])])
+      DT.corrs$SampleB <- factor(DT.corrs$SampleB, levels = names(condition_map)[order(condition_map[DT.corrs$SampleB])])
 
-      DT.corrs <<- DT.corrs
+      DT.corrs <- DT.corrs
       g <- ggplot2::ggplot(DT.corrs, ggplot2::aes(x=SampleA, y=SampleB, fill=Spearman, label = NA)) +
         ggplot2::geom_tile() +
         ggplot2::geom_text(color='gray10') +
