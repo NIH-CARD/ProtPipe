@@ -5,7 +5,7 @@
 \alias{do_limma,ProtData-method}
 \title{Perform limma differential expression on a ProtData object}
 \usage{
-do_limma(object, treatment_samples, control_samples, meta_col)
+do_limma(object, treatment_samples, control_samples)
 
 \S4method{do_limma}{ProtData}(object, treatment_samples, control_samples)
 }

@@ -1,4 +1,4 @@
-
+#' @importFrom magrittr %>%
 
 #' Title
 #'
@@ -172,7 +172,9 @@ setMethod("do_limma", "ProtData", function(object, treatment_samples, control_sa
   result_limma <- limma::topTable(fit2, coef=1,n=Inf)
   result_limma=merge(DT[,c(meta_cols,treatment_samples, control_samples)],result_limma,by.x=0,by.y=0)
   result_limma$Row.names <- NULL
-  return(result_limma)
+  # sort by adjusted o value and log fold change
+  result_limma_sorted <- result_limma[order(result_limma$adj.P.Val, -abs(result_limma$logFC)), ]
+  return(result_limma_sorted)
   }
 )
 
@@ -267,7 +269,7 @@ plot_volcano <- function(DT.original, label_col = NULL, lfc_threshold=1, fdr_thr
     ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(legend.position = "bottom") +
     ggrepel::geom_label_repel(
-      data = subset(DT),
+      data = DT,
       ggplot2::aes(label = labeltext),
       size = 5,
       box.padding = grid::unit(0.35, "lines"),
@@ -279,6 +281,321 @@ plot_volcano <- function(DT.original, label_col = NULL, lfc_threshold=1, fdr_thr
 
   return(g)
 }
+
+# Enrichment Functions
+#' Title
+#'
+#' @param DE
+#' @param org
+#'
+#' @return
+#' @export
+#'
+#' @examples
+add_entrez <- function(DE, org = org.Hs.eg.db::org.Hs.eg.db, gene_col = "Genes"){
+  DE[[gene_col]] <- sapply(strsplit(DE[[gene_col]], ";"), `[`, 1)
+  dplyr::left_join(
+    DE,
+    clusterProfiler::bitr(
+      DE$Genes,
+      fromType = "SYMBOL",
+      toType = "ENTREZID",
+      OrgDb = org.Hs.eg.db::org.Hs.eg.db
+    ),
+    by = c("Genes" = "SYMBOL")
+  )
+}
+
+#' Title
+#'
+#' @param gene_id
+#' @param all_gene_vector
+#' @param enrich_pvalue
+#'
+#' @return
+#' @export
+#'
+#' @examples
+enrich_go <- function(gene_id, all_gene_vector, enrich_pvalue = 1, org = org.Hs.eg.db::org.Hs.eg.db) {
+  cat("Processing GO\n")
+
+  GO <- tryCatch({
+    clusterProfiler::enrichGO(
+      gene          = gene_id,
+      universe      = names(all_gene_vector),
+      OrgDb         = org,
+      ont           = "ALL",
+      pAdjustMethod = "BH",
+      pvalueCutoff  = enrich_pvalue,
+      qvalueCutoff  = enrich_pvalue,
+      readable      = TRUE
+    )
+  }, error = function(e) {
+    warning("GO enrichment failed: ", conditionMessage(e))
+    return(NULL)
+  })
+
+  if (!is.null(GO) && !is.null(GO@result) && nrow(GO@result) > 0) {
+    return(GO)
+  } else {
+    return(NULL)
+  }
+}
+
+
+#' Title
+#'
+#' @param gene_id
+#' @param all_gene_vector
+#' @param enrich_pvalue
+#'
+#' @return
+#' @export
+#'
+#' @examples
+enrich_kegg <- function(gene_id, all_gene_vector, enrich_pvalue = 1, org = org.Hs.eg.db::org.Hs.eg.db, organism = 'hsa') {
+  cat("Processing KEGG\n")
+
+  KEGG <- tryCatch({
+    clusterProfiler::enrichKEGG(
+      gene         = gene_id,
+      organism     = organism,
+      universe     = all_gene_vector,
+      pvalueCutoff = enrich_pvalue,
+      qvalueCutoff = enrich_pvalue
+    )
+  }, error = function(e) {
+    warning("KEGG enrichment failed: ", conditionMessage(e))
+    return(NULL)
+  })
+
+  if (!is.null(KEGG)) {
+    KEGG <- DOSE::setReadable(KEGG, OrgDb = org, keyType = "ENTREZID")
+    if (!is.null(KEGG@result) && nrow(KEGG@result) > 0) {
+      return(KEGG)
+    }
+  }
+
+  return(NULL)
+}
+
+#' Title
+#'
+#' @param gene_list
+#' @param enrich_pvalue
+#' @param org
+#'
+#' @return
+#' @export
+#'
+#' @examples
+gse_go <- function(gene_list, enrich_pvalue = 1, org = org.Hs.eg.db::org.Hs.eg.db) {
+  cat("Processing GSEA GO\n")
+
+  GO <- tryCatch({
+    clusterProfiler::gseGO(
+      geneList     = gene_list,
+      OrgDb        = org.Hs.eg.db,
+      ont          = "ALL",
+      pAdjustMethod = "BH",
+      pvalueCutoff  = enrich_pvalue,
+      verbose       = FALSE
+    )
+  }, error = function(e) {
+    warning("GSEA GO failed: ", conditionMessage(e))
+    return(NULL)
+  })
+
+  if (!is.null(GO)) {
+    GO <- DOSE::setReadable(GO, OrgDb = org, keyType = "ENTREZID")
+    if (!is.null(GO@result) && nrow(GO@result) > 0) {
+      return(GO)
+    }
+  }
+
+  return(NULL)
+}
+
+#' Title
+#'
+#' @param gene_list
+#' @param enrich_pvalue
+#' @param org
+#' @param organism
+#'
+#' @return
+#' @export
+#'
+#' @examples
+gse_kegg <- function(gene_list, enrich_pvalue = 1, org = org.Hs.eg.db::org.Hs.eg.db, organism = 'hsa') {
+  cat("Processing GSEA KEGG\n")
+
+  KEGG <- tryCatch({
+    clusterProfiler::gseKEGG(
+      geneList     = gene_list,
+      organism     = 'hsa',
+      pvalueCutoff = enrich_pvalue,
+      verbose      = FALSE
+    )
+  }, error = function(e) {
+    warning("GSEA KEGG failed: ", conditionMessage(e))
+    return(NULL)
+  })
+
+  if (!is.null(KEGG)) {
+    KEGG <- DOSE::setReadable(KEGG, OrgDb = org, keyType = "ENTREZID")
+    if (!is.null(KEGG@result) && nrow(KEGG@result) > 0) {
+      return(KEGG)
+    }
+  }
+
+  return(NULL)
+}
+
+do_enrichment <- function(DE, lfc_threshold, fdr_threshold, enrich_pvalue){
+
+}
+###pathway analysis
+#' Title
+#'
+#' @param DE
+#' @param lfc_threshold
+#' @param fdr_threshold
+#' @param enrich_pvalue
+#'
+#' @return
+#' @export
+#'
+#' @examples
+enrich_pathways = function(DE, lfc_threshold=1, fdr_threshold=0.01, enrich_pvalue=0.05){
+  datas <- list()
+  plots <- list()
+
+  DT <- ProtPipe::add_entrez(DE)
+
+  ## up and down regulated genes
+  up_genes=DT[which(DT$logFC>=lfc_threshold&DT$adj.P.Val<=fdr_threshold),]
+  down_genes=DT[which(DT$logFC<=(-lfc_threshold)&DT$adj.P.Val<=fdr_threshold),]
+
+  # over representation enrichment for upregulated genes ###############################
+  if (length(up_genes)>0){
+    go_up <- ProtPipe::enrich_go(up_genes$ENTREZID, df_with_entrez$ENTREZID)
+    kegg_up <- ProtPipe::enrich_kegg(up_genes$ENTREZID, df_with_entrez$ENTREZID)
+
+    # Save enrichment dataframes
+    datas$go_up <- go_up
+    datas$kegg_up <- kegg_up
+
+    # save plots
+    #all GO ontologies
+    p <- enrichplot::dotplot(go_up, showCategory = 10, split = "ONTOLOGY") +
+      ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
+    plots$go_up_dotplot <- p
+    p <- enrichplot::dotplot(kegg_up, showCategory = 10)
+    plots$kegg_up_dotplot <- p
+
+    g <- barplot(go_up, showCategory = 10, split = "ONTOLOGY") +
+      ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
+    plots$go_up_barplot <- g
+    g <- barplot(kegg_up, showCategory = 10)
+    plots$kegg_up_barplot <- g
+
+    #individual GO ontolgies
+    ontologies <- unique(go_up@result$ONTOLOGY)
+
+    # Loop over ontologies and generate separate plots
+    for (ont in ontologies) {
+      # Subset the go_up object by ontology
+      go_up_subset <- clusterProfiler::filter(go_up, ONTOLOGY == ont)
+      if(nrow(go_up_subset) > 0){
+        # Create dotplot
+        dp <- enrichplot::dotplot(go_up_subset, showCategory = 10) +
+          ggplot2::ggtitle(paste("GO Dotplot -", ont))
+        plots[[paste0("go_up_dotplot_", tolower(ont))]] <- dp
+
+        # Create barplot
+        bp <- barplot(go_up_subset, showCategory = 10) +
+          ggplot2::ggtitle(paste("GO Barplot -", ont))
+        plots[[paste0("go_up_barplot_", tolower(ont))]] <- bp
+      }
+
+
+    }
+  }
+    # over representation enrichment for upregulated genes ###############################
+    if (length(down_genes)>0){
+      go_down <- ProtPipe::enrich_go(down_genes$ENTREZID, df_with_entrez$ENTREZID)
+      kegg_down <- ProtPipe::enrich_kegg(down_genes$ENTREZID, df_with_entrez$ENTREZID)
+
+      datas$go_down <- go_down
+      datas$kegg_down <- kegg_down
+
+      p <- enrichplot::dotplot(go_down, showCategory = 10, split = "ONTOLOGY") +
+        ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
+      plots$go_down_dotplot <- p
+      p <- enrichplot::dotplot(kegg_down, showCategory = 10)
+      plots$kegg_down_dotplot <- p
+
+      g <- barplot(go_down, showCategory = 10, split = "ONTOLOGY") +
+        ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
+      plots$go_down_barplot <- g
+      g <- barplot(kegg_down, showCategory = 10)
+      plots$kegg_down_barplot <- g
+
+       #individual GO ontolgies
+      ontologies <- unique(go_up@result$ONTOLOGY)
+
+      # Loop over ontologies and generate separate plots
+      for (ont in ontologies) {
+        # Subset the go_up object by ontology
+        go_down_subset <- clusterProfiler::filter(go_down, ONTOLOGY == ont)
+        if(nrow(go_down_subset) > 0){
+          # Create dotplot
+          dp <- enrichplot::dotplot(go_down_subset, showCategory = 10) +
+            ggplot2::ggtitle(paste("GO Dotplot -", ont))
+          plots[[paste0("go_down_dotplot_", tolower(ont))]] <- dp
+
+          # Create barplot
+          bp <- barplot(go_down_subset, showCategory = 10) +
+            ggplot2::ggtitle(paste("GO Barplot -", ont))
+          plots[[paste0("go_down_barplot_", tolower(ont))]] <- bp
+        }
+
+      }
+    }
+  #Gene Set Enrichment ##############
+  df_ordered <- DT[order(DT$logFC, decreasing = TRUE), ]
+  ordered_genes <- df_ordered$logFC
+  names(ordered_genes) <- df_ordered$ENTREZID
+  ordered_genes_unique <- ordered_genes[!duplicated(names(ordered_genes))]
+
+  gse_go <- ProtPipe::gse_go(ordered_genes_unique)
+  gse_kegg <- ProtPipe::gse_kegg(ordered_genes_unique)
+
+  datas$gse_go <- gse_go
+  datas$gse_kegg <- gse_kegg
+
+  if (nrow(gse_go) > 0) {
+    p=enrichplot::dotplot(gse_go, showCategory=10, split=".sign") + facet_grid(.~.sign)
+    plots[["gse_go_dotplot"]] <- p
+    x2 <- enrichplot::pairwise_termsim(gse_go)
+    p=enrichplot::emapplot(x2)
+    plots[["gse_go_emapplot"]] <- p
+  }
+
+  if (nrow(gse_kegg) > 0) {
+    p=enrichplot::dotplot(gse_kegg, showCategory=10, split=".sign") + facet_grid(.~.sign)
+    plots[["gse_kegg_dotplot"]] <- p
+    x2 <- enrichplot::pairwise_termsim(gse_kegg)
+    p=enrichplot::emapplot(x2)
+    plots[["gse_kegg_emapplot"]] <- p
+  }
+  return(list(datas, plots))
+}
+
+
+
+
 
 
 

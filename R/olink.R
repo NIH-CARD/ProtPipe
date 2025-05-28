@@ -1,3 +1,4 @@
+#' @importFrom magrittr %>%
 
 #' Title
 #'

@@ -1,3 +1,5 @@
+#' @importFrom magrittr %>%
+
 #' A protData contructor for SomaScan Data
 #'
 #' @param adat

@@ -1,3 +1,5 @@
+#' @importFrom magrittr %>%
+
 #' Title
 #'
 #' @param PD A prot_data object

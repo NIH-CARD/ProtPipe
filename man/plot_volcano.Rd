@@ -2,7 +2,7 @@
 % Please edit documentation in R/differential_expression.R
 \name{plot_volcano}
 \alias{plot_volcano}
-\title{Title}
+\title{Plot a Volcano Plot for Differential Expression Results}
 \usage{
 plot_volcano(
   DT.original,
@@ -13,8 +13,42 @@ plot_volcano(
 )
 }
 \arguments{
-\item{labelgene}{}
+\item{DT.original}{A data frame containing the differential expression results.
+It should have columns \code{logFC} (log fold change) and \code{adj.P.Val} (adjusted p-value).}
+
+\item{label_col}{The column name (as a string) used for labeling genes in the plot. Default is \code{NULL}.
+If \code{NULL}, the function will select the first column of \code{DT.original} for labeling.}
+
+\item{lfc_threshold}{A numeric value representing the threshold for log fold change (default is 1).
+Genes with logFC greater than or equal to this value are labeled as "UP",
+and genes with logFC less than or equal to the negative of this value are labeled as "DOWN".}
+
+\item{fdr_threshold}{A numeric value representing the false discovery rate (FDR) threshold (default is 0.01).
+Genes with an adjusted p-value greater than or equal to this threshold will be labeled as "Others".}
+
+\item{labelgene}{A character vector of gene names to be labeled in the plot (default is \code{NULL}).
+If provided, only these genes will be labeled in the plot.}
+}
+\value{
+A \code{ggplot2} object representing the volcano plot.
 }
 \description{
-Title
+This function generates a volcano plot based on log fold changes (logFC) and
+adjusted p-values from differential expression analysis. It highlights genes
+that pass the specified thresholds for logFC and FDR (false discovery rate).
+Optionally, it can label genes of interest or the top up/downregulated genes.
+}
+\examples{
+# Example data
+dt <- data.frame(
+  Gene = paste("Gene", 1:100),
+  logFC = rnorm(100),
+  adj.P.Val = runif(100)
+)
+
+# Plot volcano plot for the top genes
+plot_volcano(dt, label_col = "Gene", lfc_threshold = 1, fdr_threshold = 0.05)
+
+# Plot with specific gene labels
+plot_volcano(dt, label_col = "Gene", lfc_threshold = 1, fdr_threshold = 0.05, labelgene = c("Gene1", "Gene2"))
 }

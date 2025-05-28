@@ -1,3 +1,5 @@
+#' @importFrom magrittr %>%
+
 ## PCA
 #' Title
 #'

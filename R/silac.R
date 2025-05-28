@@ -1,3 +1,5 @@
+#' @importFrom magrittr %>%
+
 #' SILAC Class
 #'
 #' An S4 class that holds SILAC proteomics data and provides methods for processing.

@@ -1,3 +1,5 @@
+#' @importFrom magrittr %>%
+
 bestProteins <- function(PD, gene_col, prot_col){
   prot_col = "Protein_Group"
   gene_col = "Genes"

@@ -19,3 +19,4 @@ Differential_Intensity/
 #Ignore unpublished example data
 EXAMPLES/SILAC/pSILAC_CARD_Challenge_Report.tsv
 EXAMPLES/DIANN/
+EXAMPLES/VIRUS/

@@ -1,3 +1,5 @@
+#' @importFrom magrittr %>%
+
 #' Title
 #'
 #' @param PD_list
