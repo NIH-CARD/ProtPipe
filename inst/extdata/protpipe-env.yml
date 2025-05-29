@@ -1,0 +1,32 @@
+name: protpipe-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - r-base=4.2
+  - r-devtools
+  - r-remotes
+  - r-clusterprofiler
+  - r-corrplot
+  - r-data.table
+  - r-desctools
+  - r-dose
+  - r-dplyr
+  - r-ecodist
+  - r-enrichplot
+  - r-foreach
+  - r-ggbeeswarm
+  - r-ggdendro
+  - r-ggplot2
+  - r-ggrepel
+  - r-ggthemes
+  - r-limma
+  - r-magick
+  - r-matrixstats
+  - r-org.hs.eg.db
+  - r-pheatmap
+  - r-reshape2
+  - r-rlang
+  - r-somadataio
+  - r-stats
+  - r-umap
