@@ -179,6 +179,42 @@ setMethod("do_limma", "ProtData", function(object, treatment_samples, control_sa
 )
 
 
+#' Perform DEA using the condition labels of the protdata object
+#'
+#' @param object
+#' @param condition
+#' @param control_grouop
+#' @param treatment_group
+#'
+#' @return
+#' @export
+#'
+#' @examples
+setGeneric("do_limma_by_condition", function(object, condition, control_group, treatment_group) standardGeneric("do_limma_by_condition"))
+
+#' @describeIn do_limma Method for ProtData objects
+setMethod("do_limma_by_condition", "ProtData", function(object, condition, control_group, treatment_group) {
+  meta <- object@condition
+  conditions <- names(meta)
+
+  if (!(condition %in% conditions)) {
+    stop("The 'condition' must be a column name of the ProtData condition metadata.")
+  }
+
+  groups <- unique(meta[[condition]])
+  if (!(control_group %in% groups && treatment_group %in% groups)) {
+    stop("Both control and treatment groups must be valid entries in the condition metadata.")
+  }
+
+  control_samples <- rownames(meta %>% dplyr::filter(.data[[condition]] == control_group))
+  treatment_samples <- rownames(meta %>% dplyr::filter(.data[[condition]] == treatment_group))
+
+  if (length(control_samples) < 2 || length(treatment_samples) < 2) {
+    stop("Each of the control and treatment groups must contain at least 2 samples.")
+  }
+
+  return(ProtPipe::do_limma(object, treatment_samples, control_samples))
+})
 
 
 
@@ -240,7 +276,7 @@ plot_volcano <- function(DT.original, label_col = NULL, lfc_threshold=1, fdr_thr
   # If labelgene is provided, update labeltext accordingly
   if (!is.null(labelgene)) {
     DT <- DT %>%
-      dplyr::mutate(labeltext = dplyr::if_else(!!rlang::sym(label_col) %in% label_gene, !!rlang::sym(label_col), labeltext))
+      dplyr::mutate(labeltext = dplyr::if_else(!!rlang::sym(label_col) %in% labelgene, !!rlang::sym(label_col), labeltext))
   } else{
     # Select top 5 genes for UP and DOWN groups
     top5_gene <- DT %>%
@@ -292,19 +328,40 @@ plot_volcano <- function(DT.original, label_col = NULL, lfc_threshold=1, fdr_thr
 #' @export
 #'
 #' @examples
-add_entrez <- function(DE, org = org.Hs.eg.db::org.Hs.eg.db, gene_col = "Genes"){
+# add_entrez <- function(DE, org = org.Hs.eg.db::org.Hs.eg.db, gene_col = "Genes"){
+#   DE[[gene_col]] <- sapply(strsplit(DE[[gene_col]], ";"), `[`, 1)
+#   dplyr::left_join(
+#     DE,
+#     clusterProfiler::bitr(
+#       DE$Genes,
+#       fromType = "SYMBOL",
+#       toType = "ENTREZID",
+#       OrgDb = org
+#     ),
+#     by = c("Genes" = "SYMBOL")
+#   )
+# }
+add_entrez <- function(DE, org = org.Hs.eg.db::org.Hs.eg.db, gene_col = "Genes") {
   DE[[gene_col]] <- sapply(strsplit(DE[[gene_col]], ";"), `[`, 1)
+
+  # Remove NA or empty strings before mapping
+  genes_to_map <- DE[[gene_col]]
+  genes_to_map <- genes_to_map[!is.na(genes_to_map) & genes_to_map != ""]
+
+  mapping <- clusterProfiler::bitr(
+    genes_to_map,
+    fromType = "SYMBOL",
+    toType = "ENTREZID",
+    OrgDb = org
+  )
+
   dplyr::left_join(
     DE,
-    clusterProfiler::bitr(
-      DE$Genes,
-      fromType = "SYMBOL",
-      toType = "ENTREZID",
-      OrgDb = org.Hs.eg.db::org.Hs.eg.db
-    ),
-    by = c("Genes" = "SYMBOL")
+    mapping,
+    by = setNames("SYMBOL", gene_col)
   )
 }
+
 
 #' Title
 #'
@@ -479,12 +536,12 @@ enrich_pathways = function(DE, lfc_threshold=1, fdr_threshold=0.01, enrich_pvalu
 
   # over representation enrichment for upregulated genes ###############################
   if (length(up_genes)>0){
-    go_up <- ProtPipe::enrich_go(up_genes$ENTREZID, df_with_entrez$ENTREZID)
-    kegg_up <- ProtPipe::enrich_kegg(up_genes$ENTREZID, df_with_entrez$ENTREZID)
+    go_up <- ProtPipe::enrich_go(up_genes$ENTREZID, DT$ENTREZID)
+    kegg_up <- ProtPipe::enrich_kegg(up_genes$ENTREZID, DT$ENTREZID)
 
     # Save enrichment dataframes
-    datas$go_up <- go_up
-    datas$kegg_up <- kegg_up
+    datas$go_up <- go_up@result
+    datas$kegg_up <- kegg_up@result
 
     # save plots
     #all GO ontologies
@@ -524,11 +581,11 @@ enrich_pathways = function(DE, lfc_threshold=1, fdr_threshold=0.01, enrich_pvalu
   }
     # over representation enrichment for upregulated genes ###############################
     if (length(down_genes)>0){
-      go_down <- ProtPipe::enrich_go(down_genes$ENTREZID, df_with_entrez$ENTREZID)
-      kegg_down <- ProtPipe::enrich_kegg(down_genes$ENTREZID, df_with_entrez$ENTREZID)
+      go_down <- ProtPipe::enrich_go(down_genes$ENTREZID, DT$ENTREZID)
+      kegg_down <- ProtPipe::enrich_kegg(down_genes$ENTREZID, DT$ENTREZID)
 
-      datas$go_down <- go_down
-      datas$kegg_down <- kegg_down
+      datas$go_down <- go_down@result
+      datas$kegg_down <- kegg_down@result
 
       p <- enrichplot::dotplot(go_down, showCategory = 10, split = "ONTOLOGY") +
         ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
@@ -572,8 +629,8 @@ enrich_pathways = function(DE, lfc_threshold=1, fdr_threshold=0.01, enrich_pvalu
   gse_go <- ProtPipe::gse_go(ordered_genes_unique)
   gse_kegg <- ProtPipe::gse_kegg(ordered_genes_unique)
 
-  datas$gse_go <- gse_go
-  datas$gse_kegg <- gse_kegg
+  datas$gse_go <- gse_go@result
+  datas$gse_kegg <- gse_kegg@result
 
   if (nrow(gse_go) > 0) {
     p=enrichplot::dotplot(gse_go, showCategory=10, split=".sign") + facet_grid(.~.sign)
@@ -590,7 +647,7 @@ enrich_pathways = function(DE, lfc_threshold=1, fdr_threshold=0.01, enrich_pvalu
     p=enrichplot::emapplot(x2)
     plots[["gse_kegg_emapplot"]] <- p
   }
-  return(list(datas, plots))
+  return(list(results = datas, plots = plots))
 }
 
 

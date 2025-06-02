@@ -47,8 +47,15 @@ test_that("correctly perform ttest", {
   en <- enrich_pathways(DE)
 
 })
-meta <- meta %>%
-  mutate(sample = gsub("24hr", "1d", sample))%>%
-  mutate(sample = gsub("48hr", "2d", sample))%>%
-  mutate(time = gsub("24hr", "1d", time))%>%
-  mutate(time = gsub("48hr", "2d", time))
+
+test_that("correctly perform limma by condition", {
+  df <- readRDS("EXAMPLES/VIRUS/virus_data.rds")
+  dat_pro <- create_protdata(df) %>%
+    ProtPipe::log2_transform()
+
+  DE <- ProtPipe::do_limma_by_condition(dat_pro, condition = "base_condition", control_group = "EBV_0_5d", treatment_group = "EBV_5_5d")
+  ProtPipe::plot_volcano(DE, label_col = "Genes")
+
+
+})
+

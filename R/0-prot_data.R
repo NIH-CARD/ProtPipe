@@ -34,11 +34,16 @@ setClass("ProtData",
 #'
 #' @return An instance of the ProtData class.
 #' @export
-create_protdata <- function(dat, intensity_cols, condition = NULL, method = "Unknown") {
+create_protdata <- function(dat, intensity_cols = NULL, condition = NULL, method = "Unknown") {
 
   # Check that data is a data frame
   if (!is.data.frame(dat)) {
     stop("The 'data' argument must be a data frame.")
+  }
+
+  #get the intensity cols
+  if (is.null(intensity_cols)){
+    intensity_cols <- detect_intensity_cols(dat)
   }
 
 
@@ -125,6 +130,19 @@ create_protdata <- function(dat, intensity_cols, condition = NULL, method = "Unk
       prot_meta = prot_meta,
       method = method)
 }
+
+#' Detect_intensity_cols
+#'
+#' @param df
+#'
+#' @return list of column numbers that re numeric (intensity)
+#' @export
+#'
+#' @examples
+detect_intensity_cols <- function(df) {
+  which(sapply(df, is.numeric))
+}
+
 
 
 ####### GETTERS and SETTERS ###############################################################

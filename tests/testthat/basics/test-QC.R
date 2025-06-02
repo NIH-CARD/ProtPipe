@@ -2,6 +2,8 @@ test_that("correctly perform ttest", {
   df <- readRDS("EXAMPLES/VIRUS/virus_data.rds")
   meta <- readRDS("EXAMPLES/VIRUS/virus_metadata.rds")
 
+  t<- detect_intensity_cols(df)
+
   dat_pro <- create_protdata(df, intensity_cols = c(4:148), meta)
   ProtPipe::plot_pg_counts(dat_pro)
   ProtPipe::plot_pg_counts(dat_pro, condition = "viral.exposure")
@@ -14,4 +16,7 @@ test_that("correctly perform ttest", {
   ProtPipe::plot_PCs(dat_pro, condition = "viral.exposure")
   ProtPipe::plot_umap(dat_pro, condition = "concentration")
   ProtPipe::plot_hierarchical_cluster(dat_pro)
+
+  dat_pro <- ProtPipe::log2_transform(dat_pro)
+  ProtPipe::plot_proteomics_heatmap(dat_pro)
 })

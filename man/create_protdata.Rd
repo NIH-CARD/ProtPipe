@@ -4,7 +4,12 @@
 \alias{create_protdata}
 \title{Create a ProtData Object}
 \usage{
-create_protdata(dat, intensity_cols, condition = NULL, method = "Unknown")
+create_protdata(
+  dat,
+  intensity_cols = NULL,
+  condition = NULL,
+  method = "Unknown"
+)
 }
 \arguments{
 \item{condition}{A data frame containing conditions of the samples. Rownames should match colnames of data. Optional.}

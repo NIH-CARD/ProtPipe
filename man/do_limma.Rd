@@ -3,11 +3,14 @@
 \name{do_limma}
 \alias{do_limma}
 \alias{do_limma,ProtData-method}
+\alias{do_limma_by_condition,ProtData-method}
 \title{Perform limma differential expression on a ProtData object}
 \usage{
 do_limma(object, treatment_samples, control_samples)
 
 \S4method{do_limma}{ProtData}(object, treatment_samples, control_samples)
+
+\S4method{do_limma_by_condition}{ProtData}(object, condition, control_group, treatment_group)
 }
 \arguments{
 \item{object}{A \code{ProtData} object containing protein intensities, metadata, and condition info.}
@@ -29,6 +32,8 @@ a data frame with metadata, intensities, log fold changes, and p-values.
 \section{Methods (by class)}{
 \itemize{
 \item \code{do_limma(ProtData)}: Method for ProtData objects
+
+\item \code{do_limma_by_condition(ProtData)}: Method for ProtData objects
 
 }}
 \examples{
