@@ -4,7 +4,7 @@
 \alias{impute_min}
 \title{Title}
 \usage{
-impute_min(object, value)
+impute_min(object, alpha)
 }
 \arguments{
 \item{value}{}

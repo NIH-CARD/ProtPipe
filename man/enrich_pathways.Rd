@@ -8,7 +8,10 @@ enrich_pathways(
   DE,
   lfc_threshold = 1,
   fdr_threshold = 0.01,
-  enrich_pvalue = 0.05
+  enrich_pvalue = 0.05,
+  go_org = org.Hs.eg.db,
+  kegg_org = "hsa",
+  gene_col = "Genes"
 )
 }
 \arguments{

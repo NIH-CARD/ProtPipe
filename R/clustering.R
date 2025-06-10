@@ -13,17 +13,6 @@ get_PCs <- function(PD, condition = NA) {
   log2_cluster_data <- getData(PD) %>%
     dplyr::filter(rowSums(.) > 0)
   out <- list()
-  ##cluster data(na=0)
-  # cluster_data <- DT %>%
-  #   dplyr::select_if(is.numeric) %>%
-  #   # Replace NA values with 0
-  #   dplyr::mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))  %>%
-  #   # Filter rows where the sum of numeric values is greater than 0
-  #   dplyr::filter(rowSums(.) > 0)
-  #
-  # # Apply log2 transformation
-  # log2_cluster_data <- cluster_data %>%
-  #   dplyr::mutate(across(everything(), ~ log2(. + 1)))
 
   ##PCA and plot
   pca_data <- t(log2_cluster_data)
@@ -80,8 +69,8 @@ plot_hierarchical_cluster <- function(PD) {
     dplyr::filter(rowSums(.) > 0)
 
   # Apply log2 transformation
-  log2_cluster_data <- cluster_data %>%
-    dplyr::mutate(dplyr::across(dplyr::everything(), ~ log2(. + 1)))
+  log2_cluster_data <- cluster_data #%>%
+    #dplyr::mutate(dplyr::across(dplyr::everything(), ~ log2(. + 1)))
 
   dist_mat <- stats::dist(t(log2_cluster_data)) #
   hc_cluster <- stats::hclust(dist_mat,method = "complete")
@@ -110,8 +99,8 @@ get_umap <- function(PD, neighbors = 15, condition = NA) {
     dplyr::filter(rowSums(.) > 0)
 
   # Apply log2 transformation
-  log2_cluster_data <- cluster_data %>%
-    dplyr::mutate(across(everything(), ~ log2(. + 1)))
+  log2_cluster_data <- cluster_data #%>%
+    #dplyr::mutate(across(everything(), ~ log2(. + 1)))
 
   set.seed(100)
   DT.umap <- umap::umap(t(log2_cluster_data), n_neighbors=neighbors)

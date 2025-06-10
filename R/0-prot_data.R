@@ -295,6 +295,7 @@ setMethod("scale", "ProtData", function(object) {
   return(object)
 })
 
+# normalization methods
 
 #' Title
 #'
@@ -306,10 +307,29 @@ setMethod("scale", "ProtData", function(object) {
 #' @examples
 setGeneric("median_normalize", function(object) standardGeneric("median_normalize"))
 setMethod("median_normalize", "ProtData", function(object) {
-  object@data <- t(apply(object@data, 1, function(x) x / median(x, na.rm = TRUE))) %>%
-    as.data.frame()
+  medians <- apply(object@data, 2, median, na.rm = TRUE) # per-sample medians
+  global_median <- median(medians, na.rm = TRUE)
+  object@data <- sweep(object@data, 2, medians, function(x, m) x * (global_median / m))
   return(object)
 })
+
+#' Title
+#'
+#' @param object
+#'
+#' @return
+#' @export
+#'
+#' @examples
+setGeneric("mean_normalize", function(object) standardGeneric("mean_normalize"))
+setMethod("mean_normalize", "ProtData", function(object) {
+  means <- apply(object@data, 2, mean, na.rm = TRUE)  # per-sample means
+  global_mean <- mean(means, na.rm = TRUE)            # global mean
+  object@data <- sweep(object@data, 2, means, function(x, m) x * (global_mean / m))
+  return(object)
+})
+
+# imputation methods
 
 #' Title
 #'
@@ -323,7 +343,7 @@ setMethod("median_normalize", "ProtData", function(object) {
 setGeneric("impute", function(object, value) standardGeneric("impute"))
 setMethod("impute", "ProtData", function(object, value) {
   object@data <- object@data %>%
-    mutate(across(where(is.numeric), ~ ifelse(is.na(.) | is.nan(.), value, .)))
+    dplyr::mutate(across(where(is.numeric), ~ ifelse(is.na(.) | is.nan(.), value, .)))
   return(object)
 })
 
@@ -337,15 +357,54 @@ setMethod("impute", "ProtData", function(object, value) {
 #' @export
 #'
 #' @examples
-setGeneric("impute_min", function(object, value) standardGeneric("impute_min"))
-setMethod("impute_min", "ProtData", function(object, value) {
+setGeneric("impute_min", function(object, alpha) standardGeneric("impute_min"))
+setMethod("impute_min", "ProtData", function(object, alpha) {
   object@data <- t(apply(object@data, 1, function(x) {
-    min_val <- min(x[!is.na(x) & !is.nan(x)], na.rm = TRUE)  # find the minimum value excluding NA and NaN
+    min_val <- min(x[!is.na(x) & !is.nan(x)], na.rm = TRUE) * alpha  # find the minimum value excluding NA and NaN
     x[is.na(x) | is.nan(x)] <- min_val  # replace NA and NaN with the minimum value
     return(x)
   })) %>% as.data.frame()
   return(object)
 })
+
+
+#' Title
+#'
+#' @param object
+#' @param value
+#'
+#' @return
+#' @export
+#'
+#' @examples
+setGeneric("impute_minimal", function(object, shift = 1.8, scale = 0.3) standardGeneric("impute_minimal"))
+setMethod("impute_minimal", "ProtData", function(object, shift = 1.8, scale = 0.3) {
+  imputed_data <- t(apply(object@data, 1, function(x) {
+    mu <- mean(x, na.rm = TRUE)
+    sigma <- sd(x, na.rm = TRUE)
+    n_missing <- sum(is.na(x) | is.nan(x))
+
+    if (is.na(mu) || is.na(sigma) || n_missing == 0) {
+      return(x)
+    }
+
+    # Draw random values, ensure they are non-negative
+    imputed_vals <- rnorm(n_missing, mean = mu - shift * sigma, sd = sigma * scale)
+    imputed_vals <- pmax(imputed_vals, 0)  # clip to zero
+
+    x[is.na(x) | is.nan(x)] <- imputed_vals
+    return(x)
+  }))
+
+  imputed_data <- as.data.frame(imputed_data)
+  rownames(imputed_data) <- rownames(object@data)
+  colnames(imputed_data) <- colnames(object@data)
+
+  object@data <- imputed_data
+  return(object)
+})
+
+# batch correct
 
 #' Title
 #'

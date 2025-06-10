@@ -348,14 +348,30 @@ add_entrez <- function(DE, org = org.Hs.eg.db::org.Hs.eg.db, gene_col = "Genes")
   genes_to_map <- DE[[gene_col]]
   genes_to_map <- genes_to_map[!is.na(genes_to_map) & genes_to_map != ""]
 
-  mapping <- clusterProfiler::bitr(
-    genes_to_map,
-    fromType = "SYMBOL",
-    toType = "ENTREZID",
-    OrgDb = org
-  )
+  if (length(genes_to_map) == 0) {
+    warning("No valid gene symbols found to map.")
+    return(NULL)
+  }
 
-  dplyr::left_join(
+  # Use tryCatch to prevent app crash
+  mapping <- tryCatch({
+    clusterProfiler::bitr(
+      genes_to_map,
+      fromType = "SYMBOL",
+      toType = "ENTREZID",
+      OrgDb = org
+    )
+  }, error = function(e) {
+    warning("Gene mapping failed: ", conditionMessage(e))
+    return(NULL)
+  })
+
+  if (is.null(mapping) || nrow(mapping) == 0) {
+    warning("No Entrez IDs mapped.")
+    return(NULL)
+  }
+
+  dplyr::inner_join(
     DE,
     mapping,
     by = setNames("SYMBOL", gene_col)
@@ -452,7 +468,7 @@ gse_go <- function(gene_list, enrich_pvalue = 1, org = org.Hs.eg.db::org.Hs.eg.d
   GO <- tryCatch({
     clusterProfiler::gseGO(
       geneList     = gene_list,
-      OrgDb        = org.Hs.eg.db,
+      OrgDb        = org,
       ont          = "ALL",
       pAdjustMethod = "BH",
       pvalueCutoff  = enrich_pvalue,
@@ -490,7 +506,7 @@ gse_kegg <- function(gene_list, enrich_pvalue = 1, org = org.Hs.eg.db::org.Hs.eg
   KEGG <- tryCatch({
     clusterProfiler::gseKEGG(
       geneList     = gene_list,
-      organism     = 'hsa',
+      organism     = organism,
       pvalueCutoff = enrich_pvalue,
       verbose      = FALSE
     )
@@ -524,11 +540,31 @@ do_enrichment <- function(DE, lfc_threshold, fdr_threshold, enrich_pvalue){
 #' @export
 #'
 #' @examples
-enrich_pathways = function(DE, lfc_threshold=1, fdr_threshold=0.01, enrich_pvalue=0.05){
+enrich_pathways = function(DE, lfc_threshold=1, fdr_threshold=0.01, enrich_pvalue=0.05, go_org = org.Hs.eg.db, kegg_org = 'hsa', gene_col = "Genes"){
   datas <- list()
   plots <- list()
 
-  DT <- ProtPipe::add_entrez(DE)
+  DT <- ProtPipe::add_entrez(DE, org = go_org, gene_col = gene_col)
+
+  # Check if any genes were successfully mapped
+  if (is.null(DT)) {
+    warning("No genes were mapped to Entrez IDs. Skipping enrichment.")
+    return(NULL)
+  }
+
+  #initialize all plots and dataframes
+  datas$go_up <- datas$go_down <- datas$kegg_up <- datas$kegg_down <- datas$gse_go <- datas$gse_kegg <- NULL
+  plots$go_up_dotplot <- plots$go_up_barplot <- plots$go_down_dotplot <- plots$go_down_barplot <- NULL
+  plots$kegg_up_dotplot <- plots$kegg_up_barplot <- plots$kegg_down_dotplot <- plots$kegg_down_barplot <- NULL
+  plots[["gse_go_dotplot"]] <- plots[["gse_go_emapplot"]] <- plots[["gse_kegg_dotplot"]] <- plots[["gse_kegg_emapplot"]] <- NULL
+  expected_ontologies <- c("BP", "MF", "CC")
+  for (ont in expected_ontologies) {
+    plots[[paste0("go_up_dotplot_", tolower(ont))]] <- NULL
+    plots[[paste0("go_up_barplot_", tolower(ont))]] <- NULL
+    plots[[paste0("go_down_dotplot_", tolower(ont))]] <- NULL
+    plots[[paste0("go_down_barplot_", tolower(ont))]] <- NULL
+  }
+
 
   ## up and down regulated genes
   up_genes=DT[which(DT$logFC>=lfc_threshold&DT$adj.P.Val<=fdr_threshold),]
@@ -536,116 +572,126 @@ enrich_pathways = function(DE, lfc_threshold=1, fdr_threshold=0.01, enrich_pvalu
 
   # over representation enrichment for upregulated genes ###############################
   if (length(up_genes)>0){
-    go_up <- ProtPipe::enrich_go(up_genes$ENTREZID, DT$ENTREZID)
-    kegg_up <- ProtPipe::enrich_kegg(up_genes$ENTREZID, DT$ENTREZID)
+    go_up <- ProtPipe::enrich_go(up_genes$ENTREZID, DT$ENTREZID, org = go_org, enrich_pvalue = enrich_pvalue)
+    kegg_up <- ProtPipe::enrich_kegg(up_genes$ENTREZID, DT$ENTREZID, org = go_org, organism = kegg_org, enrich_pvalue = enrich_pvalue)
 
-    # Save enrichment dataframes
-    datas$go_up <- go_up@result
-    datas$kegg_up <- kegg_up@result
+    if(!is.null(go_up)){
+      datas$go_up <- go_up@result
 
-    # save plots
-    #all GO ontologies
-    p <- enrichplot::dotplot(go_up, showCategory = 10, split = "ONTOLOGY") +
-      ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
-    plots$go_up_dotplot <- p
-    p <- enrichplot::dotplot(kegg_up, showCategory = 10)
-    plots$kegg_up_dotplot <- p
-
-    g <- barplot(go_up, showCategory = 10, split = "ONTOLOGY") +
-      ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
-    plots$go_up_barplot <- g
-    g <- barplot(kegg_up, showCategory = 10)
-    plots$kegg_up_barplot <- g
-
-    #individual GO ontolgies
-    ontologies <- unique(go_up@result$ONTOLOGY)
-
-    # Loop over ontologies and generate separate plots
-    for (ont in ontologies) {
-      # Subset the go_up object by ontology
-      go_up_subset <- clusterProfiler::filter(go_up, ONTOLOGY == ont)
-      if(nrow(go_up_subset) > 0){
-        # Create dotplot
-        dp <- enrichplot::dotplot(go_up_subset, showCategory = 10) +
-          ggplot2::ggtitle(paste("GO Dotplot -", ont))
-        plots[[paste0("go_up_dotplot_", tolower(ont))]] <- dp
-
-        # Create barplot
-        bp <- barplot(go_up_subset, showCategory = 10) +
-          ggplot2::ggtitle(paste("GO Barplot -", ont))
-        plots[[paste0("go_up_barplot_", tolower(ont))]] <- bp
-      }
-
-
-    }
-  }
-    # over representation enrichment for upregulated genes ###############################
-    if (length(down_genes)>0){
-      go_down <- ProtPipe::enrich_go(down_genes$ENTREZID, DT$ENTREZID)
-      kegg_down <- ProtPipe::enrich_kegg(down_genes$ENTREZID, DT$ENTREZID)
-
-      datas$go_down <- go_down@result
-      datas$kegg_down <- kegg_down@result
-
-      p <- enrichplot::dotplot(go_down, showCategory = 10, split = "ONTOLOGY") +
+      p <- enrichplot::dotplot(go_up, showCategory = 10, split = "ONTOLOGY") +
         ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
-      plots$go_down_dotplot <- p
-      p <- enrichplot::dotplot(kegg_down, showCategory = 10)
-      plots$kegg_down_dotplot <- p
+      plots$go_up_dotplot <- p
 
-      g <- barplot(go_down, showCategory = 10, split = "ONTOLOGY") +
+      g <- barplot(go_up, showCategory = 10, split = "ONTOLOGY") +
         ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
-      plots$go_down_barplot <- g
-      g <- barplot(kegg_down, showCategory = 10)
-      plots$kegg_down_barplot <- g
+      plots$go_up_barplot <- g
 
-       #individual GO ontolgies
+      #individual GO ontolgies
       ontologies <- unique(go_up@result$ONTOLOGY)
 
       # Loop over ontologies and generate separate plots
       for (ont in ontologies) {
         # Subset the go_up object by ontology
-        go_down_subset <- clusterProfiler::filter(go_down, ONTOLOGY == ont)
-        if(nrow(go_down_subset) > 0){
+        go_up_subset <- clusterProfiler::filter(go_up, ONTOLOGY == ont)
+        if(nrow(go_up_subset) > 0){
           # Create dotplot
-          dp <- enrichplot::dotplot(go_down_subset, showCategory = 10) +
+          dp <- enrichplot::dotplot(go_up_subset, showCategory = 10) +
             ggplot2::ggtitle(paste("GO Dotplot -", ont))
-          plots[[paste0("go_down_dotplot_", tolower(ont))]] <- dp
+          plots[[paste0("go_up_dotplot_", tolower(ont))]] <- dp
 
           # Create barplot
-          bp <- barplot(go_down_subset, showCategory = 10) +
+          bp <- barplot(go_up_subset, showCategory = 10) +
             ggplot2::ggtitle(paste("GO Barplot -", ont))
-          plots[[paste0("go_down_barplot_", tolower(ont))]] <- bp
+          plots[[paste0("go_up_barplot_", tolower(ont))]] <- bp
         }
-
       }
     }
+    if(!is.null(kegg_up)){
+      datas$kegg_up <- kegg_up@result
+
+      p <- enrichplot::dotplot(kegg_up, showCategory = 10)
+      plots$kegg_up_dotplot <- p
+
+      g <- barplot(kegg_up, showCategory = 10)
+      plots$kegg_up_barplot <- g
+    }
+  }
+    # over representation enrichment for downregulated genes ###############################
+    if (length(down_genes)>0){
+      go_down <- ProtPipe::enrich_go(down_genes$ENTREZID, DT$ENTREZID, org = go_org, enrich_pvalue = enrich_pvalue)
+      kegg_down <- ProtPipe::enrich_kegg(down_genes$ENTREZID, DT$ENTREZID, org = go_org, organism = kegg_org, enrich_pvalue = enrich_pvalue)
+
+      # check if enriched pathways exist
+      if(!is.null(go_down)){
+        datas$go_down <- go_down@result
+
+        p <- enrichplot::dotplot(go_down, showCategory = 10, split = "ONTOLOGY") +
+          ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
+        plots$go_down_dotplot <- p
+        g <- barplot(go_down, showCategory = 10, split = "ONTOLOGY") +
+          ggplot2::facet_grid(ONTOLOGY ~ ., scales = "free", space = "free")
+        plots$go_down_barplot <- g
+
+        #individual GO ontolgies
+        ontologies <- unique(go_down@result$ONTOLOGY)
+
+        # Loop over ontologies and generate separate plots
+        for (ont in ontologies) {
+          # Subset the go_up object by ontology
+          go_down_subset <- clusterProfiler::filter(go_down, ONTOLOGY == ont)
+          if(nrow(go_down_subset) > 0){
+            # Create dotplot
+            dp <- enrichplot::dotplot(go_down_subset, showCategory = 10) +
+              ggplot2::ggtitle(paste("GO Dotplot -", ont))
+            plots[[paste0("go_down_dotplot_", tolower(ont))]] <- dp
+
+            # Create barplot
+            bp <- barplot(go_down_subset, showCategory = 10) +
+              ggplot2::ggtitle(paste("GO Barplot -", ont))
+            plots[[paste0("go_down_barplot_", tolower(ont))]] <- bp
+          }
+
+        }
+        }
+        if(!is.null(kegg_down)){
+          datas$kegg_down <- kegg_down@result
+
+          p <- enrichplot::dotplot(kegg_down, showCategory = 10)
+          plots$kegg_down_dotplot <- p
+
+          g <- barplot(kegg_down, showCategory = 10)
+          plots$kegg_down_barplot <- g
+        }
+      }
   #Gene Set Enrichment ##############
   df_ordered <- DT[order(DT$logFC, decreasing = TRUE), ]
   ordered_genes <- df_ordered$logFC
   names(ordered_genes) <- df_ordered$ENTREZID
   ordered_genes_unique <- ordered_genes[!duplicated(names(ordered_genes))]
 
-  gse_go <- ProtPipe::gse_go(ordered_genes_unique)
-  gse_kegg <- ProtPipe::gse_kegg(ordered_genes_unique)
+  gse_go <- ProtPipe::gse_go(ordered_genes_unique, org = go_org, enrich_pvalue = enrich_pvalue)
+  gse_kegg <- ProtPipe::gse_kegg(ordered_genes_unique, org = go_org, organism = kegg_org, enrich_pvalue = enrich_pvalue)
 
-  datas$gse_go <- gse_go@result
-  datas$gse_kegg <- gse_kegg@result
+  if(!is.null(gse_go)){
+    datas$gse_go <- gse_go@result
+    if (nrow(gse_go) > 0) {
+      p=enrichplot::dotplot(gse_go, showCategory=10, split=".sign") + facet_grid(.~.sign)
+      plots[["gse_go_dotplot"]] <- p
+      x2 <- enrichplot::pairwise_termsim(gse_go)
+      p=enrichplot::emapplot(x2)
+      plots[["gse_go_emapplot"]] <- p
+    }
 
-  if (nrow(gse_go) > 0) {
-    p=enrichplot::dotplot(gse_go, showCategory=10, split=".sign") + facet_grid(.~.sign)
-    plots[["gse_go_dotplot"]] <- p
-    x2 <- enrichplot::pairwise_termsim(gse_go)
-    p=enrichplot::emapplot(x2)
-    plots[["gse_go_emapplot"]] <- p
   }
-
-  if (nrow(gse_kegg) > 0) {
-    p=enrichplot::dotplot(gse_kegg, showCategory=10, split=".sign") + facet_grid(.~.sign)
-    plots[["gse_kegg_dotplot"]] <- p
-    x2 <- enrichplot::pairwise_termsim(gse_kegg)
-    p=enrichplot::emapplot(x2)
-    plots[["gse_kegg_emapplot"]] <- p
+  if(!is.null(gse_kegg)){
+    datas$gse_kegg <- gse_kegg@result
+    if (nrow(gse_kegg) > 0) {
+      p=enrichplot::dotplot(gse_kegg, showCategory=10, split=".sign") + facet_grid(.~.sign)
+      plots[["gse_kegg_dotplot"]] <- p
+      x2 <- enrichplot::pairwise_termsim(gse_kegg)
+      p=enrichplot::emapplot(x2)
+      plots[["gse_kegg_emapplot"]] <- p
+    }
   }
   return(list(results = datas, plots = plots))
 }
