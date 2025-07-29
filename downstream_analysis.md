@@ -58,3 +58,19 @@ Rscript src/immunopeptidome.R \
     --out EXAMPLES/IMMUNOPEPTIDOME/ \
     --hla EXAMPLES/IMMUNOPEPTIDOME/HLA_typing.csv
 ```
+## Phosphoproteomics analysis: `./protpipe.sh immuno`
+
+ The required inputs are
+- Phospho peptide intensity estimates from DIA-NN or Spectronaut
+- experimental design matrix csv file
+- DE method:limma or ttest(Default is ttest)
+
+Open your ternimal and cd the dir of Protpipe:
+```bash
+Rscript src/phospho.R \
+    --pepfile EXAMPLES/PHOSPHO/Phospho_peptide.tsv \
+    --out EXAMPLES/PHOSPHO/Res \
+    --design EXAMPLES/DIFF_ABUNDANCE/design_matrix_iPSC.csv\
+    --DE_method limma
+```
+
