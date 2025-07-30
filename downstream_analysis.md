@@ -70,7 +70,7 @@ Open your ternimal and cd the dir of Protpipe:
 Rscript src/phospho.R \
     --pepfile EXAMPLES/PHOSPHO/Phospho_peptide.tsv \
     --out EXAMPLES/PHOSPHO/Res \
-    --design EXAMPLES/DIFF_ABUNDANCE/design_matrix_iPSC.csv\
+    --design EXAMPLES/PHOSPHO/design_matrix.csv\
     --DE_method limma
 ```
 
