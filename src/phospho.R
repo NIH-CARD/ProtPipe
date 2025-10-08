@@ -259,7 +259,7 @@ if (!is.null(opt$PTM075)  && !is.null(opt$PTM000)) {
   }, 'ERROR: failed! Check for missing/corrupt headers?')
   
 }else{
-  cat("ERROR: Both --PTM075 <file> and --PTM000<file> must be provided\n")
+  cat("Warning: Both --PTM075 <file> and --PTM000<file> must be provided\n")
   badargs <- TRUE
 }
 
@@ -290,7 +290,8 @@ tryTo(paste0('INFO: Identify unique PTM with the least missing values and highes
     #Filter for phospho sites
     filter(grepl('Phospho', Modified_Sequence))%>%
     # Generate PTM identifiers
-    mutate(PTM = gsub(',*C[0-9]+,*|,*M[0-9]+,*', '', paste0(Genes, PTM_Location)))%>%
+    mutate(PTM_Location =  gsub(',*C[0-9]+,*|,*M[0-9]+,*', '',PTM_Location))%>%
+    mutate(PTM = paste0(Genes, PTM_Location))%>%
     # Calculate missing values 
     mutate(missing_value = rowSums(is.na(select(., -contains("Protein_Group|Genes|PTM|Precursor|Modified_Sequence")))))%>% 
     # Calculate median values
@@ -390,13 +391,9 @@ if (!is.null(opt$design)) {
     if(! dir.exists(DE_dir)){
       dir.create(DE_dir, recursive = T)
     }
-    GEA_dir <- paste0(opt$outdir, '/ttest/Gene_Enrichiment_Analysis/')
+    EA_dir <- paste0(opt$outdir, '/ttest/Gene_Enrichiment_Analysis/')
     if(! dir.exists(EA_dir)){
       dir.create(EA_dir, recursive = T)
-    }
-    PTM_EA_dir <- paste0(opt$outdir, '/ttest/Psite_Enrichiment_Analysis/')
-    if(! dir.exists(PTM_EA_dir)){
-      dir.create(PTM_EA_dir, recursive = T)
     }
     KSEA_dir <- paste0(opt$outdir, '/ttest/KSEA/')
     if(! dir.exists(KSEA_dir)){
@@ -406,11 +403,15 @@ if (!is.null(opt$design)) {
       phospho_ttest(DT = phospho_dat,
                     design_matrix = design,
                     DE_dir =DE_dir ,
-                    EA_dir = EA_dir,
-                    PTM_EA_dir=PTM_EA_dir)
-      ksea(dir =DE_dir ,outdir = KSEA_dir)
+                    EA_dir = EA_dir)
+      
       
     }, 'ERROR: DE ttest failed!')
+    tryTo('INFO: Running KSEA',{
+      ksea(dir =DE_dir ,outdir = KSEA_dir,substrates_cutoff=5,ksea_fdr=0.01)
+      
+    }, 'ERROR: KSEA failed!')
+
   }
   ##DE limma
   else if (opt$DE_method == 'limma') {
@@ -422,21 +423,25 @@ if (!is.null(opt$design)) {
     if(! dir.exists(EA_dir)){
       dir.create(EA_dir, recursive = T)
     }
-    PTM_EA_dir <- paste0(opt$outdir, '/limma/Psite_Enrichiment_Analysis/')
-    if(! dir.exists(PTM_EA_dir)){
-      dir.create(PTM_EA_dir, recursive = T)
-    }
     KSEA_dir <- paste0(opt$outdir, '/limma/KSEA/')
     if(! dir.exists(KSEA_dir)){
       dir.create(KSEA_dir, recursive = T)
     }
     Log2_phospho_dat=as.data.frame(phospho_dat) %>%
       mutate_if(is.numeric, ~ log2(. ))
-    phospho_limma(Log2_DT = Log2_phospho_dat,
-             design_matrix = design,
-             DE_dir = DE_dir,
-             EA_dir=EA_dir,
-             PTM_EA_dir=PTM_EA_dir)
+    tryTo('INFO: Running differential intensity by limma and pathway analysis',{
+      phospho_limma(Log2_DT = Log2_phospho_dat,
+                    design_matrix = design,
+                    DE_dir = DE_dir,
+                    EA_dir=EA_dir)
+      
+      
+    }, 'ERROR: DE ttest failed!')
+    
+    tryTo('INFO: Running KSEA',{
+      ksea(dir =DE_dir ,outdir = KSEA_dir,substrates_cutoff=5,ksea_fdr=0.01)
+      
+    }, 'ERROR: KSEA failed!')
   }
 } 
 #### HEATMAP ########################################################################

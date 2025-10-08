@@ -100,7 +100,7 @@ standardize_format <- function(DT.original) {
     setnames(DT, basename(colnames(DT)))
 
     # Remove trailing file extensions
-    extensions <- '.mzML$|.mzml$|.RAW$|.raw$|.dia$|.DIA$|_Intensity'
+    extensions <- '.mzML$|.mzml$|.RAW$|.raw$|.dia$|.DIA$|_Intensity|.raw.*'
     extension_samplenames <-  colnames(DT)[colnames(DT) %like% extensions]
     trimmed_samplenames <- gsub(extensions, '', extension_samplenames)
     setnames(DT, extension_samplenames, trimmed_samplenames)
@@ -211,7 +211,7 @@ plot_pep_counts <- function(DT, output_dir, output_filename) {
       theme_classic()+
       labs(fill = "",x="Sample",y='Number of Peptides')+
       scale_x_discrete(guide = guide_axis(angle = 90))+ 
-      geom_text(aes(label=N, y=N + (0.05*max(pep_counts$N))))
+      geom_text(aes(label=N, y=N + (0.05*max(DT$N))))
   }
   
   if (n_samples>50){
@@ -732,6 +732,9 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
   entrizid = data.frame(bitr(DT$Genes, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db",drop=T))
   DT <- merge(DT,entrizid,by.x='Genes',by.y='SYMBOL') %>%
     na.omit() %>%
+    group_by(ENTREZID) %>%
+    slice_max(order_by = abs(logFC), n = 1, with_ties = FALSE) %>%
+    ungroup()%>%
     arrange(desc(logFC))
   all_gene_vector=DT$logFC
   names(all_gene_vector)=DT$ENTREZID
@@ -739,16 +742,25 @@ enrich_pathway = function(DT.original, treatment, control, outdir, lfc_threshold
   ## up and down regulated genes 
   up_genes=DT[which(DT$logFC>=lfc_threshold&DT$adj.P.Val<=fdr_threshold),]
   down_genes=DT[which(DT$logFC<=(-lfc_threshold)&DT$adj.P.Val<=fdr_threshold),]
-  print('Processing up-gene enrichment analysis')
-  if (nrow(up_genes)>0){
-    enrichAll(gene_id=up_genes$ENTREZID, all_gene_vector=all_gene_vector, out_prefix = 'up',outdir=dir,width = 12,height = 8,enrich_pvalue=enrich_pvalue)
-  }
-  print('Processing down-gene enrichment analysis')
-  if (nrow(down_genes)>0){
+  if (nrow(up_genes) > 10) {
+    print("Processing up genes enrichment analysis")
+    enrichAll(
+      gene_id = up_genes$ENTREZID,
+      all_gene_vector = all_gene_vector,
+      out_prefix = "up",
+      outdir = dir,
+      width = 12,
+      height = 8,
+      enrich_pvalue = enrich_pvalue)
+  } 
+  if (nrow(down_genes)>10){
+    print('Processing down-gene enrichment analysis')
     enrichAll(gene_id=down_genes$ENTREZID, all_gene_vector=all_gene_vector, out_prefix = 'down',outdir=dir,width = 12,height = 8,enrich_pvalue=enrich_pvalue)
+  }else {
+    print("Limited down genes for enrichment analysis")
   }
-  print('Processing Gene Set Enrichment Analysis')
-  if (nrow(down_genes)+nrow(up_genes) >0){
+  if (nrow(down_genes)+nrow(up_genes) >10){
+    print('Processing Gene Set Enrichment Analysis')
     gseGO <- gseGO(geneList=all_gene_vector, 
                    ont ="ALL",
                    keyType = "ENTREZID",
@@ -1305,7 +1317,7 @@ plot_mhc_affinity <- function(sample) {
 }
 
 #pSILAC functions#################################
-#format data
+#format data####################
 psilac_standardize_format = function(DT) {
   if ('PG.ProteinGroups' %in% colnames(DT)) {
     setnames(DT, 'PG.ProteinGroups', 'Protein_Group')
@@ -1380,9 +1392,6 @@ plot_silac_pg_counts = function(DT.long, output_dir,intensity_cutoff,name,height
   return(pg_count[])
 }
 
-
-
-
 plot_silac_pep_counts = function(DT.long, output_dir,intensity_cutoff,name,height,width) {
   pep_count <- DT.long %>%
     filter(Intensity >intensity_cutoff)%>%
@@ -1444,7 +1453,7 @@ plot_silac_pg_intensity = function(DT.long, output_dir,height,width) {
     geom_boxplot(outlier.shape = NA, fill="#67a9cf") +
     theme_classic() +
     labs(fill = "",x="",y='Log10 Protein Intensity') +
-    theme(axis.text.x = element_text( angle=90)) +
+    theme(axfis.text.x = element_text( angle=90)) +
     geom_boxplot(width=0.1) +
     facet_wrap(. ~ Chanel,nrow=3)+
     geom_hline(color='#ef8a62', linetype='dashed',  aes(yintercept=quantile(log10(DT.long$Intensity), 0.50)))
@@ -1528,8 +1537,6 @@ psilac_umap <- function(DT, output_dir, output_filename) {
   ggsave(g, filename=paste0(output_dir, output_filename,'.pdf'), height = 6,width = 8)
 }
 
-
-
 ##Caculate the remaining light peptide by L/(L+H)
 #Rate of loss of the light isotope (kLoss) by modeling the relative isotope abundance (RIA)
 L_remain_channel=function(DT,design_matrix,output_dir,output_filename){
@@ -1610,7 +1617,6 @@ H_remain_channel=function(DT,output_dir,output_filename){
   return(DT_fillter)
   return(DT_RIA)
 }
-
 
 #phospho functions#################################
 ##format data
@@ -1814,20 +1820,13 @@ phospho_ttest = function(DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
                      lfc_threshold = opt$lfc_threshold,
                      fdr_threshold = opt$fdr_threshold,
                      enrich_pvalue = opt$enrich_pvalue)
-      PTM_EA(DT.original = result_ttest,
-             treatment = treatment,
-             control = control,
-             outdir = PTM_EA_dir,
-             lfc_threshold = opt$lfc_threshold,
-             fdr_threshold = opt$fdr_threshold,
-             enrich_pvalue = opt$enrich_pvalue)
     }
   }
 }
 
 
 #limma
-phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
+phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir) {
   name=names(Log2_DT)[sapply(Log2_DT, function(x) !all(is.numeric(x)))]
   rownames(Log2_DT)=Log2_DT$PTM
   #comparation
@@ -1889,13 +1888,6 @@ phospho_limma = function(Log2_DT, design_matrix,DE_dir,EA_dir,PTM_EA_dir) {
                      lfc_threshold = opt$lfc_threshold,
                      fdr_threshold = opt$fdr_threshold,
                      enrich_pvalue = opt$enrich_pvalue)
-      PTM_EA(DT.original = result_limma,
-             treatment = treatment,
-             control = control,
-             outdir = PTM_EA_dir,
-             lfc_threshold = opt$lfc_threshold,
-             fdr_threshold = opt$fdr_threshold,
-             enrich_pvalue = opt$enrich_pvalue)
     }
   }
 }
@@ -1984,7 +1976,9 @@ ksea=function(dir,outdir,substrates_cutoff,ksea_fdr){
   files=grep('.*vs.*tsv',files,value = T)
   all_KSEA_Scores=list()
   for (i in files){
+    
     filename=gsub('_i.*_vs|.tsv','',i)
+    print(paste0('KSEA for ', filename))
     KS_outdir=paste0(outdir, filename,'/')
     if (!dir.exists(KS_outdir)){
       dir.create(KS_outdir,recursive = T)
@@ -2041,15 +2035,19 @@ ksea=function(dir,outdir,substrates_cutoff,ksea_fdr){
     ggsave(filename = paste0(KS_outdir,'/enrich_plot.pdf'),plot = p,width = 8, height = 6)
     all_KSEA_Scores=c(all_KSEA_Scores,list(KSEA_Scores))
   }
-  setwd(paste0(outdir))
-  sample.labels=c(gsub('i.*_v','v',files))
-  sample.labels=gsub('.tsv','',sample.labels)
-  KSEA.Heatmap(all_KSEA_Scores, 
-               sample.labels=sample.labels, 
-               stats = 'p.value', #可选p.value或是FDR
-               m.cutoff=5,
-               p.cutoff=0.05,
-               sample.cluster=F)
+  if (length(files)>1) {
+    setwd(paste0(outdir))
+    sample.labels=c(gsub('i.*_v','v',files))
+    sample.labels=gsub('.tsv','',sample.labels)
+    KSEA.Heatmap(all_KSEA_Scores, 
+                 sample.labels=sample.labels, 
+                 stats = 'p.value', #可选p.value或是FDR
+                 m.cutoff=5,
+                 p.cutoff=0.05,
+                 sample.cluster=F)
+    
+  }
+  
 }
 
 #Soma functions##########
