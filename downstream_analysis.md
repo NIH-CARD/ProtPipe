@@ -9,9 +9,9 @@ If you have the output file from the search enegine, you can run this downstream
 Opean your R and install the dependencies:
 
 ```R
-bioc_deps <- c("clusterProfiler", "org.Hs.eg.db", "limma","STRINGdb" )
+bioc_deps <- c("clusterProfiler", "org.Hs.eg.db", "limma","STRINGdb" ,"maSigPro", "KSEAapp", "DOSE", "enrichplot")
 cran_deps <- c("optparse","corrplot", "data.table", "ggplot2", "umap","ggbeeswarm","ggrepel",'ggdendro', 
-               "pheatmap", "reshape2", "rlang", "magick",'ecodist',
+               "pheatmap", "reshape2", "rlang", "magick",'ecodist',"ggridges", "UpSetR", "plyr",
                "ggthemes", "dplyr", "tidyr", "foreach") 
 
 if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -58,3 +58,19 @@ Rscript src/immunopeptidome.R \
     --out EXAMPLES/IMMUNOPEPTIDOME/ \
     --hla EXAMPLES/IMMUNOPEPTIDOME/HLA_typing.csv
 ```
+## Phosphoproteomics analysis: `./protpipe.sh immuno`
+
+ The required inputs are
+- Phospho peptide intensity estimates from DIA-NN or Spectronaut
+- experimental design matrix csv file
+- DE method:limma or ttest(Default is ttest)
+
+Open your ternimal and cd the dir of Protpipe:
+```bash
+Rscript src/phospho.R \
+    --pepfile EXAMPLES/PHOSPHO/Phospho_peptide.tsv \
+    --out EXAMPLES/PHOSPHO/Res \
+    --design EXAMPLES/PHOSPHO/design_matrix.csv\
+    --DE_method limma
+```
+
